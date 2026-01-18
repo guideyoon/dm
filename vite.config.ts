@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 
 export default defineConfig({
+  base: '/dm/',
   server: {
     port: 3004,
     open: true
