@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>동물의 숲 3D 게임</title>
+  <link rel="icon" href="data:,">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    #renderCanvas {
+      position: fixed;
+      top: 44px;
+      left: 72px;
+      width: calc(100% - 72px);
+      height: calc(100% - 44px);
+      display: block;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+    }
+    
+    body {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+    
+    #loading {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 24px;
+      color: #333;
+    }
+  </style>
+</head>
+<body oncontextmenu="return false;" ondragstart="return false;" onselectstart="return false;">
+  <div id="loading">게임을 로딩 중...</div>
+  <canvas id="renderCanvas" oncontextmenu="return false;" ondragstart="return false;"></canvas>
+  <script>
+    // 즉시 실행 - 캔버스 로드 전에 컨텍스트 메뉴 차단
+    (function() {
+      function disableContextMenu(e) {
+        if (e && e.preventDefault) {
+          e.preventDefault();
+        }
+        if (e && e.stopPropagation) {
+          e.stopPropagation();
+        }
+        if (e && e.stopImmediatePropagation) {
+          e.stopImmediatePropagation();
+        }
+        return false;
+      }
+      
+      // 전역 차단 (즉시 실행)
+      document.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false });
+      document.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false });
+      window.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false });
+      window.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false });
+      
+      // DOM 로드 전에도 실행
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+          const canvas = document.getElementById('renderCanvas');
+          if (canvas) {
+            canvas.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false });
+            canvas.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false });
+            canvas.oncontextmenu = function() { return false; };
+          }
+        });
+      } else {
+        // DOM이 이미 로드된 경우 즉시 실행
+        const canvas = document.getElementById('renderCanvas');
+        if (canvas) {
+          canvas.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false });
+          canvas.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false });
+          canvas.oncontextmenu = function() { return false; };
+        }
+      }
+      
+      // 선택 및 드래그 방지
+      document.addEventListener('selectstart', disableContextMenu, { capture: true });
+      document.addEventListener('dragstart', disableContextMenu, { capture: true });
+    })();
+  </script>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
