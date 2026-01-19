@@ -52,33 +52,45 @@ export class SoundSystem {
      */
     public loadBackgroundMusic(name: string, url?: string, volume: number = 0.7, loop: boolean = true): void {
         if (this.backgroundMusic) {
-            this.backgroundMusic.stop()
-            this.backgroundMusic.dispose()
+            try {
+                this.backgroundMusic.stop()
+                this.backgroundMusic.dispose()
+            } catch (e) {
+                // 이미 dispose된 경우 무시
+            }
         }
 
         // 실제 파일이 없으면 빈 사운드 생성 (나중에 파일 추가 가능)
+        // 더 긴 빈 오디오 데이터 사용 (최소 1초)
         const musicUrl = url || `data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=`
         
-        this.backgroundMusic = new Sound(
-            name,
-            musicUrl,
-            this.scene,
-            () => {
-                // 로드 완료
-                if (this.backgroundMusic) {
-                    this.backgroundMusic.setVolume(volume * this.masterVolume * this.musicVolume)
-                    this.backgroundMusic.loop = loop
-                    if (this.musicEnabled && !this.backgroundMusic.isPlaying) {
-                        this.backgroundMusic.play()
+        try {
+            this.backgroundMusic = new Sound(
+                name,
+                musicUrl,
+                this.scene,
+                () => {
+                    // 로드 완료 콜백 - 재생은 하지 않음 (수동 재생만)
+                    try {
+                        if (this.backgroundMusic) {
+                            this.backgroundMusic.setVolume(volume * this.masterVolume * this.musicVolume)
+                            this.backgroundMusic.loop = loop
+                            // 자동 재생하지 않음 - playBackgroundMusic()에서만 재생
+                        }
+                    } catch (e) {
+                        // 로드 콜백 오류 무시
                     }
+                },
+                {
+                    loop: loop,
+                    autoplay: false, // 자동 재생 비활성화
+                    volume: volume * this.masterVolume * this.musicVolume
                 }
-            },
-            {
-                loop: loop,
-                autoplay: false,
-                volume: volume * this.masterVolume * this.musicVolume
-            }
-        )
+            )
+        } catch (e) {
+            console.warn('배경음악 생성 중 오류:', e)
+            this.backgroundMusic = null
+        }
     }
 
     /**
@@ -134,8 +146,20 @@ export class SoundSystem {
      */
     public playBackgroundMusic(): void {
         if (!this.musicEnabled || !this.backgroundMusic) return
-        if (!this.backgroundMusic.isPlaying) {
-            this.backgroundMusic.play()
+        
+        try {
+            // Sound 객체가 재생 가능한지 확인
+            if (this.backgroundMusic.isPlaying === undefined) {
+                // 아직 초기화되지 않음
+                return
+            }
+            
+            if (!this.backgroundMusic.isPlaying) {
+                this.backgroundMusic.play()
+            }
+        } catch (e) {
+            // 재생 실패 시 무시 (오디오 파일이 없을 수 있음)
+            // console.warn('배경음악 재생 중 오류:', e)
         }
     }
 
@@ -143,8 +167,14 @@ export class SoundSystem {
      * 배경음악 정지
      */
     public stopBackgroundMusic(): void {
-        if (this.backgroundMusic && this.backgroundMusic.isPlaying) {
-            this.backgroundMusic.stop()
+        if (this.backgroundMusic) {
+            try {
+                if (this.backgroundMusic.isPlaying) {
+                    this.backgroundMusic.stop()
+                }
+            } catch (e) {
+                console.warn('배경음악 정지 중 오류:', e)
+            }
         }
     }
 

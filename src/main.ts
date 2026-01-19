@@ -63,42 +63,43 @@ function initGame() {
     return false
   }
   
-  // 여러 단계에서 차단 (더 강력하게)
+  // 여러 단계에서 차단 (최대한 강력하게)
+  // 1. contextmenu 이벤트 차단
   canvas.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false })
   canvas.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false })
-  canvas.oncontextmenu = () => false
+  canvas.oncontextmenu = (e) => { e.preventDefault(); return false; }
   
-  // window, document에도 추가
+  // 2. window, document에도 추가
   window.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false })
   window.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false })
-  window.oncontextmenu = () => false
+  window.oncontextmenu = (e) => { e?.preventDefault(); return false; }
   document.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false })
   document.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false })
-  document.oncontextmenu = () => false
+  document.oncontextmenu = (e) => { e?.preventDefault(); return false; }
   
-  // body에도 추가
+  // 3. body에도 추가
   document.body.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false })
   document.body.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false })
-  document.body.oncontextmenu = () => false
+  document.body.oncontextmenu = (e) => { e?.preventDefault(); return false; }
   
-  // 추가: 마우스 버튼 이벤트에서도 차단 (우클릭 감지)
-  canvas.addEventListener('mousedown', (e: MouseEvent) => {
-    if (e.button === 2) { // 우클릭 버튼
+  // 4. 마우스 버튼 이벤트에서도 차단 (우클릭 감지)
+  const blockRightClick = (e: MouseEvent) => {
+    if (e.button === 2) {
       e.preventDefault()
       e.stopPropagation()
       e.stopImmediatePropagation()
       return false
     }
-  }, { capture: true, passive: false })
+  }
   
-  canvas.addEventListener('mouseup', (e: MouseEvent) => {
-    if (e.button === 2) { // 우클릭 버튼
-      e.preventDefault()
-      e.stopPropagation()
-      e.stopImmediatePropagation()
-      return false
-    }
-  }, { capture: true, passive: false })
+  canvas.addEventListener('mousedown', blockRightClick, { capture: true, passive: false })
+  canvas.addEventListener('mouseup', blockRightClick, { capture: true, passive: false })
+  window.addEventListener('mousedown', blockRightClick, { capture: true, passive: false })
+  window.addEventListener('mouseup', blockRightClick, { capture: true, passive: false })
+  
+  // 5. auxclick 이벤트도 차단 (보조 버튼 클릭)
+  canvas.addEventListener('auxclick', disableContextMenu, { capture: true, passive: false })
+  window.addEventListener('auxclick', disableContextMenu, { capture: true, passive: false })
 
   // Babylon.js 엔진 생성
   const engine = new Engine(canvas, true, {
@@ -109,16 +110,32 @@ function initGame() {
   // 씬 생성
   const scene = new Scene(engine)
   
-  // Babylon.js 씬에서도 우클릭 차단
+  // Babylon.js 씬에서도 우클릭 차단 (더 강력하게)
   scene.onPointerObservable.add((pointerInfo) => {
-    if (pointerInfo.type === 2) { // POINTERDOWN
-      const event = pointerInfo.event as MouseEvent
-      if (event && event.button === 2) { // 우클릭
+    const event = pointerInfo.event as MouseEvent
+    if (event) {
+      // 우클릭 버튼 차단
+      if (event.button === 2) {
         event.preventDefault()
         event.stopPropagation()
+        event.stopImmediatePropagation()
         return false
       }
+      // contextmenu 이벤트 차단
+      if (pointerInfo.type === 4) { // POINTERWHEEL 또는 다른 이벤트
+        if (event.button === 2) {
+          event.preventDefault()
+          event.stopPropagation()
+          event.stopImmediatePropagation()
+          return false
+        }
+      }
     }
+  }, 1) // Priority 1로 높은 우선순위 설정
+  
+  // 추가: 엔진 레벨에서도 차단
+  engine.onContextMenuLostFocusObservable.add(() => {
+    // 컨텍스트 메뉴 포커스 손실 시 아무것도 하지 않음
   })
 
   // 인증 시스템 초기화
@@ -261,24 +278,7 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
     }
   })
   
-  // 추가로 모든 마우스 이벤트에서 우클릭 차단
-  canvas.addEventListener('mousedown', (e: MouseEvent) => {
-    if (e.button === 2) {
-      e.preventDefault()
-      e.stopPropagation()
-      e.stopImmediatePropagation()
-      return false
-    }
-  }, { capture: true, passive: false })
-  
-  canvas.addEventListener('mouseup', (e: MouseEvent) => {
-    if (e.button === 2) {
-      e.preventDefault()
-      e.stopPropagation()
-      e.stopImmediatePropagation()
-      return false
-    }
-  }, { capture: true, passive: false })
+  // 이미 위에서 차단했으므로 중복 제거
 
   camera.upperBetaLimit = Math.PI / 2.2
   camera.lowerRadiusLimit = 8
