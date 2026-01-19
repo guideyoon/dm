@@ -36,7 +36,7 @@
       -khtml-user-drag: none;
       -moz-user-drag: none;
       -o-user-drag: none;
-      user-drag: none;
+      pointer-events: auto;
     }
     
     body {
@@ -55,11 +55,11 @@
       color: #333;
     }
   </style>
-  <script type="module" crossorigin src="/dm/assets/index-BvttD_Ch.js"></script>
+  <script type="module" crossorigin src="/dm/assets/index-iS-lw4b9.js"></script>
 </head>
-<body oncontextmenu="return false;" ondragstart="return false;" onselectstart="return false;">
+<body oncontextmenu="return false;" ondragstart="return false;" onselectstart="return false;" style="-webkit-touch-callout: none; -webkit-user-select: none;">
   <div id="loading">게임을 로딩 중...</div>
-  <canvas id="renderCanvas" oncontextmenu="return false;" ondragstart="return false;"></canvas>
+  <canvas id="renderCanvas" oncontextmenu="event.preventDefault(); return false;" ondragstart="event.preventDefault(); return false;" style="-webkit-touch-callout: none;"></canvas>
   <script>
     // 즉시 실행 - 캔버스 로드 전에 컨텍스트 메뉴 차단 (더 강력하게)
     (function() {
