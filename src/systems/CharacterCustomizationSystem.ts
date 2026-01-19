@@ -1,4 +1,4 @@
-import { Scene, Mesh, StandardMaterial, Color3, MeshBuilder } from '@babylonjs/core'
+import { Scene, Mesh, StandardMaterial, Color3, MeshBuilder, Vector3 } from '@babylonjs/core'
 
 export type ClothingCategory = 'top' | 'bottom' | 'dress' | 'shoes' | 'hat' | 'hair'
 
@@ -40,10 +40,15 @@ export class CharacterCustomizationSystem {
     private rightLegMesh: Mesh | null = null
     private leftArmMesh: Mesh | null = null
     private rightArmMesh: Mesh | null = null
+    private leftFootMesh: Mesh | null = null
+    private rightFootMesh: Mesh | null = null
     private hairMeshes: Mesh[] = []
     
     // 의상 메시 저장 (착용 중인 의상)
     private equippedClothingMeshes: Map<string, Mesh[]> = new Map()
+    
+    // 신발 메시 저장 (동적으로 생성된 신발)
+    private shoeMeshes: Mesh[] = []
 
     constructor(scene: Scene, playerMesh: Mesh) {
         this.scene = scene
@@ -59,6 +64,16 @@ export class CharacterCustomizationSystem {
         this.rightLegMesh = this.scene.getMeshByName('rightLeg') as Mesh
         this.leftArmMesh = this.scene.getMeshByName('leftArm') as Mesh
         this.rightArmMesh = this.scene.getMeshByName('rightArm') as Mesh
+        this.leftFootMesh = this.scene.getMeshByName('leftFoot') as Mesh
+        this.rightFootMesh = this.scene.getMeshByName('rightFoot') as Mesh
+        
+        // 발 메시가 없으면 다리 메시 하단에 신발 메시를 동적으로 생성
+        if (!this.leftFootMesh && this.leftLegMesh) {
+            this.createShoeMesh('leftShoe', this.leftLegMesh)
+        }
+        if (!this.rightFootMesh && this.rightLegMesh) {
+            this.createShoeMesh('rightShoe', this.rightLegMesh)
+        }
         
         // 헤어 메시 찾기
         const hairTop = this.scene.getMeshByName('hairTop')
@@ -70,6 +85,35 @@ export class CharacterCustomizationSystem {
         if (hairBack) this.hairMeshes.push(hairBack as Mesh)
         if (hairLeft) this.hairMeshes.push(hairLeft as Mesh)
         if (hairRight) this.hairMeshes.push(hairRight as Mesh)
+    }
+    
+    private createShoeMesh(name: string, legMesh: Mesh) {
+        // 다리 메시의 하단 부분에 신발 메시 생성
+        // 앞부분이 튀어나오도록 depth를 약간 늘림
+        const shoe = MeshBuilder.CreateBox(name, { width: 0.22, height: 0.15, depth: 0.3 }, this.scene)
+        // 신발을 다리 메시의 자식으로 설정하여 다리와 함께 움직이도록 함
+        shoe.parent = legMesh
+        
+        // 다리 메시의 하단 부분에 위치 (다리 높이 0.6의 절반인 0.3 아래)
+        // 다리 메시의 로컬 좌표계에서 하단에 배치
+        // 신발이 바닥에 빠지지 않도록 y 위치를 더 올림
+        // 신발 높이 0.15의 절반인 0.075를 더하고, 추가로 약간 더 올려서 바닥 위에 확실히 표시
+        // 앞부분이 튀어나오도록 z축으로 약간 앞으로 이동
+        shoe.position = new Vector3(0, -0.3 + 0.1, 0.025) // 다리 하단(-0.3)에서 신발 높이의 절반보다 조금 더 올림, 앞으로 약간 이동
+        
+        // 기본 신발 재질
+        const defaultShoeMat = new StandardMaterial(`${name}Mat`, this.scene)
+        defaultShoeMat.diffuseColor = new Color3(0.9, 0.9, 0.9) // 기본 흰색
+        shoe.material = defaultShoeMat
+        
+        this.shoeMeshes.push(shoe)
+        
+        // 왼쪽/오른쪽 구분
+        if (name === 'leftShoe') {
+            this.leftFootMesh = shoe
+        } else if (name === 'rightShoe') {
+            this.rightFootMesh = shoe
+        }
     }
 
     private initializeDefaultClothing() {
@@ -252,7 +296,7 @@ export class CharacterCustomizationSystem {
                 break
             case 'shoes':
                 this.equippedOutfit.shoes = id
-                // 신발은 현재 다리 메시의 색상으로 표현 (나중에 별도 메시로 확장 가능)
+                this.applyShoesMaterial(clothing)
                 break
             case 'hair':
                 this.equippedOutfit.hair = id
@@ -285,6 +329,7 @@ export class CharacterCustomizationSystem {
             case 'shoes':
                 if (this.equippedOutfit.shoes === id) {
                     delete this.equippedOutfit.shoes
+                    this.applyShoesMaterial(null) // 기본 재질로 복원
                 }
                 break
             case 'hair':
@@ -320,6 +365,10 @@ export class CharacterCustomizationSystem {
                 break
             case 'shoes':
                 if (this.equippedOutfit.shoes) {
+                    const clothing = this.wardrobe.get(this.equippedOutfit.shoes)
+                    if (clothing) {
+                        this.applyShoesMaterial(null)
+                    }
                     delete this.equippedOutfit.shoes
                 }
                 break
@@ -373,6 +422,45 @@ export class CharacterCustomizationSystem {
             
             this.leftLegMesh.material = leftLegMat
             this.rightLegMesh.material = rightLegMat
+        }
+    }
+
+    private applyShoesMaterial(clothing: ClothingItem | null) {
+        // 신발 메시가 없으면 생성
+        if (this.shoeMeshes.length === 0) {
+            if (this.leftLegMesh && !this.leftFootMesh) {
+                this.createShoeMesh('leftShoe', this.leftLegMesh)
+            }
+            if (this.rightLegMesh && !this.rightFootMesh) {
+                this.createShoeMesh('rightShoe', this.rightLegMesh)
+            }
+        }
+        
+        const targetMeshes: Mesh[] = []
+        
+        if (this.leftFootMesh) {
+            targetMeshes.push(this.leftFootMesh)
+        }
+        
+        if (this.rightFootMesh) {
+            targetMeshes.push(this.rightFootMesh)
+        }
+
+        if (targetMeshes.length === 0) return
+
+        if (clothing && clothing.color) {
+            targetMeshes.forEach((mesh, index) => {
+                const material = new StandardMaterial(`shoesMat_${clothing.id}_${index}`, this.scene)
+                material.diffuseColor = clothing.color!
+                mesh.material = material
+            })
+        } else {
+            // 기본 재질 복원 (기본 흰색 신발)
+            const defaultMat = new StandardMaterial('shoesMat', this.scene)
+            defaultMat.diffuseColor = new Color3(0.9, 0.9, 0.9) // 기본 흰색 신발
+            targetMeshes.forEach((mesh, index) => {
+                mesh.material = defaultMat.clone(`shoesMat_${index}`)
+            })
         }
     }
 

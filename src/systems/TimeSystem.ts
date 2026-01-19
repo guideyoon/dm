@@ -25,8 +25,8 @@ export class TimeSystem {
     timeOfDay: 'day'
   }
   
-  // 시간 가속 배율 (더 느리게 조정: 1초 = 게임 20초)
-  private timeScale: number = 20 // 1초 = 게임 20초 (하루 = 약 72분)
+  // 시간 가속 배율 (더 느리게 조정: 1초 = 게임 10초)
+  private timeScale: number = 10 // 1초 = 게임 10초 (하루 = 약 144분 = 2시간 24분)
   private lastUpdateTime: number = Date.now()
   
   // 조명 관련

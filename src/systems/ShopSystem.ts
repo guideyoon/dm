@@ -556,7 +556,7 @@ export class ShopSystem {
     }
   }
   
-  private getPriceMultiplier(): number {
+  public getPriceMultiplier(): number {
     // 시세 변동 (0.8 ~ 1.2)
     let multiplier = 1.0
     

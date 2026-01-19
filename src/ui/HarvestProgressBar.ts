@@ -1,6 +1,7 @@
 export class HarvestProgressBar {
     private element: HTMLDivElement
     private progressBar!: HTMLDivElement
+    private labelText!: HTMLDivElement
     private isVisible: boolean = false
 
     constructor() {
@@ -19,19 +20,42 @@ export class HarvestProgressBar {
             left: '50%',
             transform: 'translateX(-50%)',
             width: '300px',
-            height: '20px',
+            height: '50px',
             backgroundColor: 'rgba(0, 0, 0, 0.7)',
             borderRadius: '10px',
             padding: '3px',
             display: 'none',
             zIndex: '2000',
             border: '2px solid rgba(255, 255, 255, 0.3)',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)'
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center'
         })
     }
 
     private createElements() {
+        // '채집중' 텍스트 레이블
+        this.labelText = document.createElement('div')
+        this.labelText.textContent = '채집중'
+        Object.assign(this.labelText.style, {
+            color: '#ffffff',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            marginBottom: '4px',
+            textShadow: '0 2px 4px rgba(0, 0, 0, 0.8)',
+            userSelect: 'none'
+        })
+        this.element.appendChild(this.labelText)
+
         // 진행 바 컨테이너
+        const progressContainer = document.createElement('div')
+        Object.assign(progressContainer.style, {
+            width: '100%',
+            height: '20px',
+            position: 'relative'
+        })
+
         this.progressBar = document.createElement('div')
         this.progressBar.id = 'harvest-progress-bar-inner'
         Object.assign(this.progressBar.style, {
@@ -43,7 +67,8 @@ export class HarvestProgressBar {
             transition: 'width 0.1s linear',
             boxShadow: '0 0 10px rgba(100, 255, 200, 0.5)'
         })
-        this.element.appendChild(this.progressBar)
+        progressContainer.appendChild(this.progressBar)
+        this.element.appendChild(progressContainer)
     }
 
     public show() {

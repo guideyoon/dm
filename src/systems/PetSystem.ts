@@ -88,6 +88,9 @@ export class PetSystem {
     // 펫 능력 쿨타임 추적
     private abilityCooldowns: Map<string, Map<string, number>> = new Map() // petId -> abilityId -> remainingCooldown
     
+    // 펫 상호작용 쿨타임 추적
+    private interactionCooldowns: Map<string, { play: number; pet: number }> = new Map() // petId -> { play: timestamp, pet: timestamp }
+    
     // 펫 타입별 기본 설정
     private petTypeConfigs: Map<PetType, {
         category: PetCategory
@@ -453,11 +456,40 @@ export class PetSystem {
     }
 
     // 펫 관리
-    feedPet(petId: string, foodType?: string): boolean {
+    feedPet(petId: string, foodItemId?: string): { success: boolean; message: string } {
         const pet = this.pets.get(petId)
-        if (!pet) return false
+        if (!pet) return { success: false, message: '펫을 찾을 수 없습니다.' }
 
-        const isFavorite = foodType === pet.favoriteFood
+        // 인벤토리에서 음식 아이템 확인
+        if (!this.inventoryManager) {
+            return { success: false, message: '인벤토리 시스템이 없습니다.' }
+        }
+
+        // 소비 가능한 음식 아이템 목록
+        const foodItems = ['사과', '열매', '버섯', '일반 버섯', '희귀 버섯', '황금 열매']
+        
+        // foodItemId가 제공되지 않으면 첫 번째 사용 가능한 음식 찾기
+        let selectedFood = foodItemId
+        if (!selectedFood) {
+            for (const food of foodItems) {
+                if (this.inventoryManager.getCount(food) > 0) {
+                    selectedFood = food
+                    break
+                }
+            }
+        }
+
+        if (!selectedFood) {
+            return { success: false, message: '인벤토리에 음식이 없습니다.' }
+        }
+
+        // 인벤토리에서 음식 제거
+        const hasFood = this.inventoryManager.remove(selectedFood, 1)
+        if (!hasFood) {
+            return { success: false, message: '음식을 사용할 수 없습니다.' }
+        }
+
+        const isFavorite = selectedFood === pet.favoriteFood
         
         // 배고픔 회복
         pet.hunger = Math.min(100, pet.hunger + (isFavorite ? 30 : 20))
@@ -470,13 +502,26 @@ export class PetSystem {
         
         pet.lastInteractionDate = Date.now()
 
-        console.log(`${pet.name}에게 음식을 주었습니다. (좋아하는 음식: ${isFavorite ? '예' : '아니오'})`)
-        return true
+        const message = isFavorite 
+            ? `${pet.name}에게 ${selectedFood}을(를) 주었습니다! (좋아하는 음식!)`
+            : `${pet.name}에게 ${selectedFood}을(를) 주었습니다.`
+        console.log(message)
+        return { success: true, message }
     }
 
-    playWithPet(petId: string, toyType?: string): boolean {
+    playWithPet(petId: string, toyType?: string): { success: boolean; message: string } {
         const pet = this.pets.get(petId)
-        if (!pet) return false
+        if (!pet) return { success: false, message: '펫을 찾을 수 없습니다.' }
+
+        // 쿨타임 확인 (5분 = 300초)
+        const cooldown = 300000 // 5분 (밀리초)
+        const now = Date.now()
+        const cooldowns = this.interactionCooldowns.get(petId) || { play: 0, pet: 0 }
+        
+        if (now - cooldowns.play < cooldown) {
+            const remaining = Math.ceil((cooldown - (now - cooldowns.play)) / 1000 / 60)
+            return { success: false, message: `아직 놀 수 없습니다. (${remaining}분 후 가능)` }
+        }
 
         const isFavorite = toyType === pet.favoriteToy
 
@@ -494,13 +539,28 @@ export class PetSystem {
         // 경험치 획득
         this.addExperience(petId, isFavorite ? 5 : 3)
 
-        console.log(`${pet.name}와 놀았습니다. (좋아하는 장난감: ${isFavorite ? '예' : '아니오'})`)
-        return true
+        // 쿨타임 기록
+        cooldowns.play = now
+        this.interactionCooldowns.set(petId, cooldowns)
+
+        const message = `${pet.name}와 놀았습니다.${isFavorite ? ' (좋아하는 장난감!)' : ''}`
+        console.log(message)
+        return { success: true, message }
     }
 
-    petPet(petId: string): boolean {
+    petPet(petId: string): { success: boolean; message: string } {
         const pet = this.pets.get(petId)
-        if (!pet) return false
+        if (!pet) return { success: false, message: '펫을 찾을 수 없습니다.' }
+
+        // 쿨타임 확인 (3분 = 180초)
+        const cooldown = 180000 // 3분 (밀리초)
+        const now = Date.now()
+        const cooldowns = this.interactionCooldowns.get(petId) || { play: 0, pet: 0 }
+        
+        if (now - cooldowns.pet < cooldown) {
+            const remaining = Math.ceil((cooldown - (now - cooldowns.pet)) / 1000 / 60)
+            return { success: false, message: `아직 쓰다듬을 수 없습니다. (${remaining}분 후 가능)` }
+        }
 
         // 행복도 증가
         pet.happiness = Math.min(100, pet.happiness + 5)
@@ -510,8 +570,48 @@ export class PetSystem {
         
         pet.lastInteractionDate = Date.now()
 
-        console.log(`${pet.name}를 쓰다듬었습니다.`)
-        return true
+        // 쿨타임 기록
+        cooldowns.pet = now
+        this.interactionCooldowns.set(petId, cooldowns)
+
+        const message = `${pet.name}를 쓰다듬었습니다.`
+        console.log(message)
+        return { success: true, message }
+    }
+    
+    // 펫 이름 변경
+    changePetName(petId: string, newName: string): { success: boolean; message: string } {
+        const pet = this.pets.get(petId)
+        if (!pet) return { success: false, message: '펫을 찾을 수 없습니다.' }
+        
+        if (!newName || newName.trim().length === 0) {
+            return { success: false, message: '이름을 입력해주세요.' }
+        }
+        
+        if (newName.trim().length > 20) {
+            return { success: false, message: '이름은 20자 이하여야 합니다.' }
+        }
+        
+        const oldName = pet.name
+        pet.name = newName.trim()
+        
+        console.log(`펫 이름 변경: ${oldName} -> ${pet.name}`)
+        return { success: true, message: `펫 이름이 "${pet.name}"으로 변경되었습니다.` }
+    }
+    
+    // 펫 상호작용 쿨타임 확인
+    getInteractionCooldown(petId: string): { play: number; pet: number } | null {
+        const cooldowns = this.interactionCooldowns.get(petId)
+        if (!cooldowns) return null
+        
+        const now = Date.now()
+        const playCooldown = 300000 // 5분
+        const petCooldown = 180000 // 3분
+        
+        return {
+            play: Math.max(0, playCooldown - (now - cooldowns.play)),
+            pet: Math.max(0, petCooldown - (now - cooldowns.pet))
+        }
     }
 
     // 펫 상태 업데이트

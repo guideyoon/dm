@@ -12,7 +12,8 @@ export interface NPC {
   favoriteItems: string[]
   dislikedItems: string[]
   dailyQuests: string[]
-  mesh?: Mesh
+  mesh?: Mesh // 상호작용 마커
+  rootMesh?: Mesh // NPC 루트 메시 (모든 부위의 부모)
   position: { x: number; y: number; z: number }
 }
 
@@ -51,6 +52,7 @@ export class NPCSystem {
   private dialogues: Map<string, Dialogue[]> = new Map()
   private quests: Map<string, Quest> = new Map()
   private dailyDialogueSeeds: Map<string, number> = new Map() // 일일 대화 시드 (날짜 기반)
+  private npcWalkTimes: Map<string, number> = new Map() // NPC별 걷기 애니메이션 시간
   
   constructor(scene: Scene, inventoryManager: InventoryManager) {
     this.scene = scene
@@ -121,24 +123,170 @@ export class NPCSystem {
   }
   
   private createNPCMesh(npc: NPC) {
-    // 간단한 NPC 메시 (원통 몸통 + 구체 머리)
-    const body = MeshBuilder.CreateCylinder(`npc_body_${npc.id}`, { height: 1, diameter: 0.6 }, this.scene)
-    body.position = new Vector3(npc.position.x, 0.5, npc.position.z)
+    // 유저 캐릭터와 동일한 구조로 NPC 생성
+    const npcMesh = MeshBuilder.CreateBox(`npc_root_${npc.id}`, { size: 0.1 }, this.scene)
+    npcMesh.position = new Vector3(npc.position.x, 0, npc.position.z)
     
-    const bodyMat = new StandardMaterial(`npcBodyMat_${npc.id}`, this.scene)
-    bodyMat.diffuseColor = new Color3(0.2, 0.5, 0.9) // 파란색 옷
-    body.material = bodyMat
+    // 랜덤 색상 생성 (NPC마다 다르게)
+    let seed = npc.id.split('_').reduce((acc, val) => acc + val.charCodeAt(0), 0)
+    const random = (min: number, max: number) => {
+      seed++
+      const x = Math.sin(seed) * 10000
+      return min + (x - Math.floor(x)) * (max - min)
+    }
     
-    const head = MeshBuilder.CreateSphere(`npc_head_${npc.id}`, { diameter: 0.4 }, this.scene)
-    head.position = new Vector3(npc.position.x, 1.2, npc.position.z)
+    // 랜덤 옷 색상
+    const topColor = new Color3(
+      random(0.2, 1.0),
+      random(0.2, 1.0),
+      random(0.2, 1.0)
+    )
     
-    const headMat = new StandardMaterial(`npcHeadMat_${npc.id}`, this.scene)
-    headMat.diffuseColor = new Color3(1, 0.8, 0.6) // 피부색
-    head.material = headMat
+    // 랜덤 하의 색상
+    const bottomColor = new Color3(
+      random(0.1, 0.5),
+      random(0.1, 0.5),
+      random(0.1, 0.5)
+    )
+    
+    // 랜덤 헤어 색상
+    const hairColor = new Color3(
+      random(0.1, 0.5),
+      random(0.1, 0.4),
+      random(0.05, 0.3)
+    )
+    
+    // 랜덤 신발 색상
+    const shoeColor = new Color3(
+      random(0.1, 1.0),
+      random(0.1, 1.0),
+      random(0.1, 1.0)
+    )
+    
+    // 피부색 (약간의 랜덤 변형)
+    const skinColor = new Color3(
+      0.9 + random(-0.1, 0.1),
+      0.7 + random(-0.1, 0.1),
+      0.5 + random(-0.1, 0.1)
+    )
+    
+    // 머리
+    const head = MeshBuilder.CreateBox(`npc_head_${npc.id}`, { width: 0.4, height: 0.4, depth: 0.4 }, this.scene)
+    head.position.y = 1.4
+    head.material = new StandardMaterial(`npcHeadMat_${npc.id}`, this.scene)
+    head.material.diffuseColor = skinColor
+    head.parent = npcMesh
+    
+    // 얼굴
+    const faceMat = new StandardMaterial(`npcFaceMat_${npc.id}`, this.scene)
+    faceMat.diffuseColor = new Color3(0.1, 0.1, 0.1)
+    faceMat.backFaceCulling = false
+    
+    const noseMat = new StandardMaterial(`npcNoseMat_${npc.id}`, this.scene)
+    noseMat.diffuseColor = new Color3(0.8, 0.2, 0.2)
+    
+    const leftEye = MeshBuilder.CreatePlane(`npc_leftEye_${npc.id}`, { width: 0.06, height: 0.06 }, this.scene)
+    leftEye.position = new Vector3(-0.08, 0.05, 0.205)
+    leftEye.material = faceMat
+    leftEye.parent = head
+    
+    const rightEye = MeshBuilder.CreatePlane(`npc_rightEye_${npc.id}`, { width: 0.06, height: 0.06 }, this.scene)
+    rightEye.position = new Vector3(0.08, 0.05, 0.205)
+    rightEye.material = faceMat
+    rightEye.parent = head
+    
+    const nose = MeshBuilder.CreateBox(`npc_nose_${npc.id}`, { width: 0.06, height: 0.06, depth: 0.06 }, this.scene)
+    nose.position = new Vector3(0, -0.05, 0.2)
+    nose.material = noseMat
+    nose.parent = head
+    
+    const mouth = MeshBuilder.CreatePlane(`npc_mouth_${npc.id}`, { width: 0.08, height: 0.03 }, this.scene)
+    mouth.position = new Vector3(0, -0.15, 0.205)
+    mouth.material = faceMat
+    mouth.parent = head
+    
+    // 헤어 (랜덤 색상)
+    const hairMat = new StandardMaterial(`npcHairMat_${npc.id}`, this.scene)
+    hairMat.diffuseColor = hairColor
+    
+    const hairTop = MeshBuilder.CreateBox(`npc_hairTop_${npc.id}`, { width: 0.44, height: 0.15, depth: 0.44 }, this.scene)
+    hairTop.position.y = 0.15
+    hairTop.material = hairMat
+    hairTop.parent = head
+    
+    const hairBack = MeshBuilder.CreateBox(`npc_hairBack_${npc.id}`, { width: 0.44, height: 0.3, depth: 0.1 }, this.scene)
+    hairBack.position = new Vector3(0, -0.05, -0.18)
+    hairBack.material = hairMat
+    hairBack.parent = head
+    
+    const hairLeft = MeshBuilder.CreateBox(`npc_hairLeft_${npc.id}`, { width: 0.1, height: 0.3, depth: 0.35 }, this.scene)
+    hairLeft.position = new Vector3(-0.18, -0.05, -0.05)
+    hairLeft.material = hairMat
+    hairLeft.parent = head
+    
+    const hairRight = MeshBuilder.CreateBox(`npc_hairRight_${npc.id}`, { width: 0.1, height: 0.3, depth: 0.35 }, this.scene)
+    hairRight.position = new Vector3(0.18, -0.05, -0.05)
+    hairRight.material = hairMat
+    hairRight.parent = head
+    
+    // 몸통 (랜덤 옷 색상)
+    const body = MeshBuilder.CreateBox(`npc_body_${npc.id}`, { width: 0.5, height: 0.6, depth: 0.3 }, this.scene)
+    body.position.y = 0.9
+    body.material = new StandardMaterial(`npcBodyMat_${npc.id}`, this.scene)
+    body.material.diffuseColor = topColor
+    body.parent = npcMesh
+    
+    // 다리 (랜덤 하의 색상)
+    const leftLeg = MeshBuilder.CreateBox(`npc_leftLeg_${npc.id}`, { width: 0.2, height: 0.6, depth: 0.2 }, this.scene)
+    leftLeg.position = new Vector3(-0.1, 0.3, 0)
+    leftLeg.material = new StandardMaterial(`npcLeftLegMat_${npc.id}`, this.scene)
+    leftLeg.material.diffuseColor = bottomColor
+    leftLeg.parent = npcMesh
+    // 다리 회전 중심 설정 (상단 - 몸통 연결부)
+    leftLeg.setPivotPoint(new Vector3(0, 0.3, 0))
+    
+    const rightLeg = MeshBuilder.CreateBox(`npc_rightLeg_${npc.id}`, { width: 0.2, height: 0.6, depth: 0.2 }, this.scene)
+    rightLeg.position = new Vector3(0.1, 0.3, 0)
+    rightLeg.material = new StandardMaterial(`npcRightLegMat_${npc.id}`, this.scene)
+    rightLeg.material.diffuseColor = bottomColor
+    rightLeg.parent = npcMesh
+    // 다리 회전 중심 설정 (상단 - 몸통 연결부)
+    rightLeg.setPivotPoint(new Vector3(0, 0.3, 0))
+    
+    // 팔
+    const leftArm = MeshBuilder.CreateBox(`npc_leftArm_${npc.id}`, { width: 0.15, height: 0.5, depth: 0.15 }, this.scene)
+    leftArm.position = new Vector3(-0.3, 0.85, 0)
+    leftArm.material = new StandardMaterial(`npcLeftArmMat_${npc.id}`, this.scene)
+    leftArm.material.diffuseColor = skinColor
+    leftArm.parent = npcMesh
+    // 팔 회전 중심 설정 (상단 - 어깨)
+    leftArm.setPivotPoint(new Vector3(0, 0.25, 0))
+    
+    const rightArm = MeshBuilder.CreateBox(`npc_rightArm_${npc.id}`, { width: 0.15, height: 0.5, depth: 0.15 }, this.scene)
+    rightArm.position = new Vector3(0.3, 0.85, 0)
+    rightArm.material = new StandardMaterial(`npcRightArmMat_${npc.id}`, this.scene)
+    rightArm.material.diffuseColor = skinColor
+    rightArm.parent = npcMesh
+    // 팔 회전 중심 설정 (상단 - 어깨)
+    rightArm.setPivotPoint(new Vector3(0, 0.25, 0))
+    
+    // 신발 (랜덤 색상)
+    const leftShoe = MeshBuilder.CreateBox(`npc_leftShoe_${npc.id}`, { width: 0.22, height: 0.15, depth: 0.3 }, this.scene)
+    leftShoe.parent = leftLeg
+    leftShoe.position = new Vector3(0, -0.3 + 0.1, 0.025)
+    leftShoe.material = new StandardMaterial(`npcLeftShoeMat_${npc.id}`, this.scene)
+    leftShoe.material.diffuseColor = shoeColor
+    
+    const rightShoe = MeshBuilder.CreateBox(`npc_rightShoe_${npc.id}`, { width: 0.22, height: 0.15, depth: 0.3 }, this.scene)
+    rightShoe.parent = rightLeg
+    rightShoe.position = new Vector3(0, -0.3 + 0.1, 0.025)
+    rightShoe.material = new StandardMaterial(`npcRightShoeMat_${npc.id}`, this.scene)
+    rightShoe.material.diffuseColor = shoeColor
     
     // NPC 마커 (상호작용 가능)
     const marker = MeshBuilder.CreateSphere(`npc_marker_${npc.id}`, { diameter: 0.3 }, this.scene)
-    marker.position = new Vector3(npc.position.x, 1.5, npc.position.z)
+    marker.position = new Vector3(0, 1.5, 0)
+    marker.parent = npcMesh
     
     const markerMat = new StandardMaterial(`npcMarkerMat_${npc.id}`, this.scene)
     markerMat.diffuseColor = new Color3(1, 1, 0) // 노란색
@@ -150,6 +298,17 @@ export class NPCSystem {
     marker.metadata = { type: 'npc', npcId: npc.id }
     
     npc.mesh = marker
+    npc.rootMesh = npcMesh // 루트 메시 저장
+    
+    // NPC 부위 메시 저장 (애니메이션용)
+    ;(npc as any).leftLeg = leftLeg
+    ;(npc as any).rightLeg = rightLeg
+    ;(npc as any).leftArm = leftArm
+    ;(npc as any).rightArm = rightArm
+    ;(npc as any).body = body
+    
+    // 걷기 애니메이션 시간 초기화
+    this.npcWalkTimes.set(npc.id, 0)
   }
   
   private initializeDialogues() {
@@ -694,7 +853,11 @@ export class NPCSystem {
   // NPC 이동 애니메이션 (렌더 루프에서 호출)
   public updateNPCMovements(deltaTime: number) {
     this.npcs.forEach(npc => {
-      if (!npc.mesh || !(npc as any).isMoving) return
+      if (!npc.mesh || !(npc as any).isMoving) {
+        // 이동하지 않을 때는 애니메이션 리셋
+        this.resetNPCAnimation(npc)
+        return
+      }
       
       const targetPos = (npc as any).targetPosition
       if (!targetPos) return
@@ -708,9 +871,10 @@ export class NPCSystem {
         // 목적지 도착
         ;(npc as any).isMoving = false
         ;(npc as any).targetPosition = null
+        this.resetNPCAnimation(npc)
       } else {
-        // 목적지로 이동
-        const moveSpeed = (npc as any).moveSpeed || 0.02
+        // 목적지로 이동 (매우 천천히)
+        const moveSpeed = (npc as any).moveSpeed || 0.005 // 매우 느린 속도 (0.02 -> 0.005)
         const moveDistance = moveSpeed * deltaTime * 60 // 프레임 비율 조정
         
         const moveX = (dx / distance) * moveDistance
@@ -719,24 +883,96 @@ export class NPCSystem {
         npc.position.x += moveX
         npc.position.z += moveZ
         
-        // 메시 위치 업데이트
-        const body = this.scene.getMeshByName(`npc_body_${npc.id}`)
-        const head = this.scene.getMeshByName(`npc_head_${npc.id}`)
+        // 루트 메시 위치만 업데이트 (모든 부위가 자식이므로 함께 이동)
+        if (npc.rootMesh) {
+          npc.rootMesh.position.x = npc.position.x
+          npc.rootMesh.position.z = npc.position.z
+          
+          // 목적지 방향으로 회전
+          const targetAngle = Math.atan2(dx, dz)
+          npc.rootMesh.rotation.y = targetAngle
+        }
         
-        if (body) {
-          body.position.x = npc.position.x
-          body.position.z = npc.position.z
-        }
-        if (head) {
-          head.position.x = npc.position.x
-          head.position.z = npc.position.z
-        }
-        if (npc.mesh) {
-          npc.mesh.position.x = npc.position.x
-          npc.mesh.position.z = npc.position.z
-        }
+        // 걷기 애니메이션
+        this.animateNPCWalk(npc, deltaTime)
       }
     })
+  }
+  
+  // NPC 걷기 애니메이션
+  private animateNPCWalk(npc: NPC, deltaTime: number) {
+    const walkTime = this.npcWalkTimes.get(npc.id) || 0
+    const walkAnimationSpeed = 5 // 유저보다 느린 애니메이션 속도
+    const newWalkTime = walkTime + deltaTime * walkAnimationSpeed
+    this.npcWalkTimes.set(npc.id, newWalkTime)
+    
+    // 사인파를 사용한 자연스러운 걷기 동작 (유저보다 작은 각도)
+    const legSwing = Math.sin(newWalkTime) * 0.3 // 다리 스윙 각도 (0.5 -> 0.3)
+    const armSwing = Math.sin(newWalkTime + Math.PI) * 0.25 // 팔 스윙 (0.4 -> 0.25)
+    
+    const leftLeg = (npc as any).leftLeg
+    const rightLeg = (npc as any).rightLeg
+    const leftArm = (npc as any).leftArm
+    const rightArm = (npc as any).rightArm
+    const body = (npc as any).body
+    
+    // 다리 애니메이션
+    if (leftLeg) {
+      leftLeg.rotation.x = legSwing
+      leftLeg.rotation.z = Math.sin(newWalkTime * 0.5) * 0.03
+    }
+    if (rightLeg) {
+      rightLeg.rotation.x = -legSwing
+      rightLeg.rotation.z = Math.sin(newWalkTime * 0.5 + Math.PI) * 0.03
+    }
+    
+    // 팔 애니메이션
+    if (leftArm) {
+      leftArm.rotation.x = armSwing
+      leftArm.rotation.z = Math.sin(newWalkTime * 0.8) * 0.05
+    }
+    if (rightArm) {
+      rightArm.rotation.x = -armSwing
+      rightArm.rotation.z = Math.sin(newWalkTime * 0.8 + Math.PI) * 0.05
+    }
+    
+    // 몸통 약간의 상하 움직임
+    if (body) {
+      body.position.y = 0.9 + Math.abs(Math.sin(newWalkTime)) * 0.01
+    }
+  }
+  
+  // NPC 애니메이션 리셋
+  private resetNPCAnimation(npc: NPC) {
+    const leftLeg = (npc as any).leftLeg
+    const rightLeg = (npc as any).rightLeg
+    const leftArm = (npc as any).leftArm
+    const rightArm = (npc as any).rightArm
+    const body = (npc as any).body
+    
+    if (leftLeg) {
+      leftLeg.rotation.x = 0
+      leftLeg.rotation.z = 0
+    }
+    if (rightLeg) {
+      rightLeg.rotation.x = 0
+      rightLeg.rotation.z = 0
+    }
+    if (leftArm) {
+      leftArm.rotation.x = 0
+      leftArm.rotation.y = 0
+      leftArm.rotation.z = 0
+    }
+    if (rightArm) {
+      rightArm.rotation.x = 0
+      rightArm.rotation.y = 0
+      rightArm.rotation.z = 0
+    }
+    if (body) {
+      body.position.y = 0.9
+    }
+    
+    this.npcWalkTimes.set(npc.id, 0)
   }
   
   // NPC 간 만남 체크

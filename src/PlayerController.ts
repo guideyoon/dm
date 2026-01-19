@@ -118,6 +118,24 @@ export class PlayerController {
     this.leftArm = scene.getMeshByName("leftArm") as Mesh
     this.rightArm = scene.getMeshByName("rightArm") as Mesh
     this.head = scene.getMeshByName("head") as Mesh
+    
+    // 다리와 팔의 회전 중심을 몸통과의 연결 부분으로 설정
+    if (this.leftLeg) {
+      // 다리 메시의 상단(몸통 연결부)을 회전 중심으로 설정
+      this.leftLeg.setPivotPoint(new Vector3(0, 0.3, 0)) // 다리 높이의 절반(0.3)이 상단
+    }
+    if (this.rightLeg) {
+      this.rightLeg.setPivotPoint(new Vector3(0, 0.3, 0))
+    }
+    if (this.leftArm) {
+      // 팔 메시의 상단(어깨 연결부)을 회전 중심으로 설정
+      // 팔 높이 0.5의 절반인 0.25가 상단
+      this.leftArm.setPivotPoint(new Vector3(0, 0.25, 0))
+    }
+    if (this.rightArm) {
+      // 팔 메시의 상단(어깨 연결부)을 회전 중심으로 설정
+      this.rightArm.setPivotPoint(new Vector3(0, 0.25, 0))
+    }
     this.leftEye = scene.getMeshByName("leftEye") as Mesh
     this.rightEye = scene.getMeshByName("rightEye") as Mesh
     this.mouth = scene.getMeshByName("mouth") as Mesh
@@ -340,14 +358,12 @@ export class PlayerController {
           }
         }
         
-        // 일반 클릭: 팝업 표시 및 이동
+        // 일반 클릭: 팝업 표시만 (이동 없음)
         this.lastClickTime = currentTime
         this.lastClickedMesh = pickedMesh as Mesh
         this.clickedObject = pickedMesh as Mesh
         this.showActionBar(pickedMesh as Mesh)
-        // Move towards the object
-        this.targetPosition = pickInfo.pickedPoint.clone();
-        this.isMoving = true;
+        // 이동하지 않음 - 상호작용만 가능
         // 오브젝트 클릭 시 마커 숨김
         if (this.moveMarker) this.moveMarker.isVisible = false
       } else {
@@ -699,28 +715,32 @@ export class PlayerController {
     this.walkTime += deltaTime * walkAnimationSpeed
     
     // 사인파를 사용한 자연스러운 걷기 동작
-    const legSwing = Math.sin(this.walkTime) * 0.8 // 다리 스윙 각도
-    const armSwing = Math.sin(this.walkTime + Math.PI) * 0.6 // 팔 스윙 (다리와 반대)
+    // 회전 각도를 줄여서 몸통과의 분리감을 줄임
+    const legSwing = Math.sin(this.walkTime) * 0.5 // 다리 스윙 각도 감소 (0.8 -> 0.5)
+    const armSwing = Math.sin(this.walkTime + Math.PI) * 0.4 // 팔 스윙 감소 (0.6 -> 0.4)
     
-    // 다리 애니메이션 (더 부드러운 움직임)
+    // 다리 애니메이션 (몸통과 자연스럽게 연결되도록)
     if (this.leftLeg) {
+      // 회전 중심을 상단(몸통 연결부)으로 설정하기 위해 pivot 사용
+      // pivot이 없으면 회전 중심을 상단으로 이동시키기 위해 위치 조정
       this.leftLeg.rotation.x = legSwing
-      // 약간의 전후 움직임 추가
-      this.leftLeg.rotation.z = Math.sin(this.walkTime * 0.5) * 0.1
+      // 전후 움직임을 줄여서 분리감 감소
+      this.leftLeg.rotation.z = Math.sin(this.walkTime * 0.5) * 0.05 // 0.1 -> 0.05
     }
     if (this.rightLeg) {
       this.rightLeg.rotation.x = -legSwing
-      this.rightLeg.rotation.z = Math.sin(this.walkTime * 0.5 + Math.PI) * 0.1
+      this.rightLeg.rotation.z = Math.sin(this.walkTime * 0.5 + Math.PI) * 0.05 // 0.1 -> 0.05
     }
     
-    // 팔 애니메이션 (자연스러운 스윙)
+    // 팔 애니메이션 (몸통과 자연스럽게 연결되도록)
     if (this.leftArm) {
       this.leftArm.rotation.x = armSwing
-      this.leftArm.rotation.z = Math.sin(this.walkTime * 0.8) * 0.15
+      // 회전을 줄여서 몸통과의 분리감 감소
+      this.leftArm.rotation.z = Math.sin(this.walkTime * 0.8) * 0.08 // 0.15 -> 0.08
     }
     if (this.rightArm) {
       this.rightArm.rotation.x = -armSwing
-      this.rightArm.rotation.z = Math.sin(this.walkTime * 0.8 + Math.PI) * 0.15
+      this.rightArm.rotation.z = Math.sin(this.walkTime * 0.8 + Math.PI) * 0.08 // 0.15 -> 0.08
     }
     
     // 몸통 약간의 상하 움직임 (걷는 리듬감)
@@ -735,34 +755,34 @@ export class PlayerController {
     const runAnimationSpeed = 15 // 걷기보다 빠른 애니메이션 속도
     this.walkTime += deltaTime * runAnimationSpeed
     
-    // 달리기는 더 큰 스윙 각도와 빠른 속도
-    const legSwing = Math.sin(this.walkTime) * 1.2 // 더 큰 다리 스윙
-    const armSwing = Math.sin(this.walkTime + Math.PI) * 0.9 // 더 큰 팔 스윙
+    // 달리기는 더 큰 스윙 각도와 빠른 속도 (하지만 몸통과의 분리감을 줄이기 위해 조정)
+    const legSwing = Math.sin(this.walkTime) * 0.8 // 다리 스윙 감소 (1.2 -> 0.8)
+    const armSwing = Math.sin(this.walkTime + Math.PI) * 0.6 // 팔 스윙 감소 (0.9 -> 0.6)
     
     // 다리 애니메이션
     if (this.leftLeg) {
       this.leftLeg.rotation.x = legSwing
-      this.leftLeg.rotation.z = Math.sin(this.walkTime) * 0.2
+      this.leftLeg.rotation.z = Math.sin(this.walkTime) * 0.1 // 0.2 -> 0.1
     }
     if (this.rightLeg) {
       this.rightLeg.rotation.x = -legSwing
-      this.rightLeg.rotation.z = Math.sin(this.walkTime + Math.PI) * 0.2
+      this.rightLeg.rotation.z = Math.sin(this.walkTime + Math.PI) * 0.1 // 0.2 -> 0.1
     }
     
-    // 팔 애니메이션 (달리기는 팔 움직임이 큼)
+    // 팔 애니메이션 (달리기는 팔 움직임이 큼, 하지만 분리감 감소)
     if (this.leftArm) {
       this.leftArm.rotation.x = armSwing
-      this.leftArm.rotation.z = Math.sin(this.walkTime * 1.2) * 0.25
+      this.leftArm.rotation.z = Math.sin(this.walkTime * 1.2) * 0.12 // 0.25 -> 0.12
     }
     if (this.rightArm) {
       this.rightArm.rotation.x = -armSwing
-      this.rightArm.rotation.z = Math.sin(this.walkTime * 1.2 + Math.PI) * 0.25
+      this.rightArm.rotation.z = Math.sin(this.walkTime * 1.2 + Math.PI) * 0.12 // 0.25 -> 0.12
     }
     
     // 몸통 상하 움직임 (달리기는 더 큼)
     const body = this.getBodyMesh()
     if (body) {
-      body.position.y = 0.9 + Math.abs(Math.sin(this.walkTime)) * 0.04
+      body.position.y = 0.9 + Math.abs(Math.sin(this.walkTime)) * 0.03
     }
   }
 

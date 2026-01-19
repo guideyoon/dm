@@ -48,6 +48,9 @@ export class UIManagerNew {
     private missionFilter: string | null = null // 미션 필터 (타입)
     private museumFilter: string | null = null // 박물관 필터 (카테고리)
     private craftFilter: string | null = null // 제작 필터 (카테고리)
+    private craftingItems: Map<string, boolean> = new Map() // 제작 중인 아이템 추적 (recipeId -> isCrafting)
+    private craftingComplete: Map<string, boolean> = new Map() // 제작 완료된 아이템 추적 (recipeId -> isComplete)
+    private shopFilter: string | null = null // 상점 필터 (카테고리)
     private inventoryFilter: string | null = null // 인벤토리 필터 (카테고리)
     private inventorySort: 'name' | 'count' | 'type' = 'name' // 인벤토리 정렬 기준
 
@@ -84,7 +87,7 @@ export class UIManagerNew {
     private setupMessageStyles() {
         Object.assign(this.messageElement.style, {
             position: 'fixed',
-            bottom: '80px',
+            bottom: '170px', // 채집 바(bottom: 100px, height: 50px) 위로 올림
             left: '50%',
             transform: 'translateX(-50%)',
             padding: '15px 30px',
@@ -550,12 +553,29 @@ export class UIManagerNew {
                     this.inventoryManager!.list()
                 )
 
+                const isCrafting = this.craftingItems.get(recipe.id) || false
+                const isComplete = this.craftingComplete.get(recipe.id) || false
+                const buttonDisabled = !canCraft || isCrafting
+                let statusText = ''
+                let statusColor = ''
+                
+                if (isCrafting) {
+                    statusText = '제작 중...'
+                    statusColor = '#FFA500'
+                } else if (isComplete) {
+                    statusText = '제작 완료!'
+                    statusColor = '#4CAF50'
+                }
+                
                 recipesHtml += `
                     <div style="padding: 15px; border: 2px solid ${canCraft ? 'rgba(100, 255, 100, 0.5)' : 'rgba(100, 100, 100, 0.3)'}; border-radius: 10px; background: ${canCraft ? 'rgba(100, 255, 100, 0.1)' : 'rgba(50, 50, 50, 0.5)'};">
                         <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">${recipe.name}</div>
                         <div style="font-size: 14px; color: #aaa; margin-bottom: 8px;">결과: ${this.getItemDisplayName(recipe.resultItem)} x${recipe.resultCount}</div>
                         ${recipe.ingredients.length > 0 ? `<div style="font-size: 12px; color: #ccc; margin-bottom: 10px;">재료: ${recipe.ingredients.map(ing => `${this.getItemDisplayName(ing.name)} x${ing.count}`).join(', ')}</div>` : ''}
-                        <button onclick="window.craftItem('${recipe.id}')" style="padding: 8px 16px; border-radius: 6px; border: none; background: ${canCraft ? '#4CAF50' : '#666'}; color: #fff; cursor: ${canCraft ? 'pointer' : 'not-allowed'};" ${!canCraft ? 'disabled' : ''}>${canCraft ? '제작' : '재료 부족'}</button>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <button onclick="window.craftItem('${recipe.id}')" style="padding: 8px 16px; border-radius: 6px; border: none; background: ${buttonDisabled ? '#666' : '#4CAF50'}; color: #fff; cursor: ${buttonDisabled ? 'not-allowed' : 'pointer'};" ${buttonDisabled ? 'disabled' : ''}>${canCraft ? (isCrafting ? '제작 중' : '제작') : '재료 부족'}</button>
+                            ${statusText ? `<span style="color: ${statusColor}; font-weight: bold; font-size: 14px;">${statusText}</span>` : ''}
+                        </div>
                     </div>
                 `
             })
@@ -565,24 +585,84 @@ export class UIManagerNew {
 
         // 전역 함수로 제작 함수 등록
         const self = this
-        ;(window as any).craftItem = (recipeId: string) => {
+        ;(window as any).craftItem = async (recipeId: string) => {
+            // 이미 제작 중이면 무시
+            if (self.craftingItems.get(recipeId)) {
+                return
+            }
+            
             // 제작 버튼 클릭 효과음
             if (self.soundSystem) {
                 self.soundSystem.playSound('ui_click')
             }
             
             if (!self.craftingSystem) return
+            
+            const recipe = self.craftingSystem.getRecipeManager().getRecipe(recipeId)
+            if (!recipe) return
+            
+            // 제작 시작 - 상태 표시
+            self.craftingItems.set(recipeId, true)
+            self.craftingComplete.set(recipeId, false)
+            self.showCraftPanel() // 패널 새로고침하여 상태 표시
+            
+            // 제작 시간 시뮬레이션 (1.5초)
+            await new Promise(resolve => setTimeout(resolve, 1500))
+            
+            // 제작 실행
             const result = self.craftingSystem.craft(recipeId)
+            
+            // 제작 완료 처리
+            self.craftingItems.set(recipeId, false)
+            
             if (result.success) {
                 // 제작 성공 효과음 (아이템 획득)
                 if (self.soundSystem) {
                     self.soundSystem.playSound('item_get')
                 }
-                self.showMessage(result.message, false)
+                
+                // 완료 상태 표시
+                self.craftingComplete.set(recipeId, true)
+                self.showCraftPanel() // 패널 새로고침하여 완료 상태 표시
+                
+                // 완료 메시지를 제작 창 안에 표시
+                const messageHtml = `
+                    <div style="padding: 15px; margin: 10px 0; background: rgba(76, 175, 80, 0.3); border: 2px solid rgba(76, 175, 80, 0.6); border-radius: 10px; text-align: center;">
+                        <div style="font-size: 18px; font-weight: bold; color: #4CAF50; margin-bottom: 5px;">✅ 제작 완료!</div>
+                        <div style="font-size: 14px; color: #fff;">${result.message}</div>
+                    </div>
+                `
+                
+                // 제작 패널 내용에 메시지 추가
+                const panelContent = self.contextPanel.getContentElement()
+                if (panelContent) {
+                    // 기존 메시지가 있으면 제거
+                    const existingMsg = document.getElementById('craft-complete-message')
+                    if (existingMsg) {
+                        existingMsg.remove()
+                    }
+                    
+                    const messageDiv = document.createElement('div')
+                    messageDiv.innerHTML = messageHtml
+                    messageDiv.id = 'craft-complete-message'
+                    panelContent.insertBefore(messageDiv, panelContent.firstChild)
+                    
+                    // 3초 후 메시지 제거
+                    setTimeout(() => {
+                        const msg = document.getElementById('craft-complete-message')
+                        if (msg) {
+                            msg.remove()
+                        }
+                        // 완료 상태도 초기화
+                        self.craftingComplete.set(recipeId, false)
+                        self.showCraftPanel()
+                    }, 3000)
+                }
+                
                 self.showBagPanel() // 가방 패널 새로고침
-                self.showCraftPanel() // 제작 패널 새로고침
             } else {
                 self.showMessage(result.message, false)
+                self.showCraftPanel() // 패널 새로고침
             }
         }
         
@@ -669,39 +749,60 @@ export class UIManagerNew {
             return
         }
         
-        const shopItems = this.shopSystem.getShopItems()
-        const playerCoins = this.shopSystem.getPlayerCoins()
+        let shopItems = this.shopSystem.getShopItems()
+        const playerCoins = this.shopSystem.getCoins()
+        
+        // 필터 적용
+        if (this.shopFilter) {
+            shopItems = shopItems.filter(item => item.category === this.shopFilter)
+        }
         
         let content = `
             <div style="padding: 20px;">
                 <div style="margin-bottom: 20px; font-size: 18px; font-weight: bold;">
                     보유 코인: <span style="color: #FFD700;">${playerCoins}</span>
                 </div>
+                ${this.shopFilter === 'pet' ? `
+                    <div style="margin-bottom: 15px;">
+                        <button onclick="window.shopBack()" style="padding: 8px 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: rgba(100, 100, 100, 0.5); color: #fff; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                            ← 뒤로가기
+                        </button>
+                    </div>
+                ` : ''}
                 <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                    <button onclick="window.shopFilter('all')" style="padding: 8px 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: #fff; cursor: pointer;">전체</button>
-                    <button onclick="window.shopFilter('tool')" style="padding: 8px 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: #fff; cursor: pointer;">도구</button>
-                    <button onclick="window.shopFilter('material')" style="padding: 8px 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: #fff; cursor: pointer;">재료</button>
-                    <button onclick="window.shopFilter('seed')" style="padding: 8px 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: #fff; cursor: pointer;">씨앗</button>
+                    <button onclick="window.shopFilter('all')" style="padding: 8px 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: ${!this.shopFilter || this.shopFilter === 'all' ? 'rgba(76, 175, 80, 0.5)' : 'rgba(255,255,255,0.1)'}; color: #fff; cursor: pointer;">전체</button>
+                    <button onclick="window.shopFilter('tool')" style="padding: 8px 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: ${this.shopFilter === 'tool' ? 'rgba(76, 175, 80, 0.5)' : 'rgba(255,255,255,0.1)'}; color: #fff; cursor: pointer;">도구</button>
+                    <button onclick="window.shopFilter('material')" style="padding: 8px 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: ${this.shopFilter === 'material' ? 'rgba(76, 175, 80, 0.5)' : 'rgba(255,255,255,0.1)'}; color: #fff; cursor: pointer;">재료</button>
+                    <button onclick="window.shopFilter('seed')" style="padding: 8px 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: ${this.shopFilter === 'seed' ? 'rgba(76, 175, 80, 0.5)' : 'rgba(255,255,255,0.1)'}; color: #fff; cursor: pointer;">씨앗</button>
+                    <button onclick="window.shopFilter('pet')" style="padding: 8px 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: ${this.shopFilter === 'pet' ? 'rgba(76, 175, 80, 0.5)' : 'rgba(255,255,255,0.1)'}; color: #fff; cursor: pointer;">펫</button>
                 </div>
                 <div id="shop-items-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 500px; overflow-y: auto;">
         `
         
-        shopItems.forEach(item => {
-            const stockText = item.stock === -1 ? '무제한' : `재고: ${item.stock}`
-            content += `
-                <div style="padding: 15px; border: 2px solid rgba(255,255,255,0.2); border-radius: 10px; background: rgba(255,255,255,0.05);">
-                    <div style="font-size: 16px; font-weight: bold; margin-bottom: 5px;">${item.name}</div>
-                    <div style="font-size: 12px; color: #aaa; margin-bottom: 10px;">${item.description}</div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <div style="font-size: 14px;">구매: <span style="color: #4CAF50;">${item.buyPrice}</span> 코인</div>
-                            <div style="font-size: 12px; color: #999;">${stockText}</div>
+        if (shopItems.length === 0) {
+            content += '<div style="text-align: center; color: #999; padding: 20px;">해당 카테고리의 아이템이 없습니다.</div>'
+        } else {
+            shopItems.forEach(item => {
+                const stockText = item.stock === -1 ? '무제한' : `재고: ${item.stock}`
+                // 실제 구매 가격 계산 (시세 변동 적용)
+                const priceMultiplier = this.shopSystem.getPriceMultiplier ? this.shopSystem.getPriceMultiplier() : 1
+                const actualPrice = Math.floor(item.buyPrice * priceMultiplier)
+                
+                content += `
+                    <div style="padding: 15px; border: 2px solid rgba(255,255,255,0.2); border-radius: 10px; background: rgba(255,255,255,0.05);">
+                        <div style="font-size: 16px; font-weight: bold; margin-bottom: 5px;">${item.name}</div>
+                        <div style="font-size: 12px; color: #aaa; margin-bottom: 10px;">${item.description}</div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-size: 14px;">구매: <span style="color: #4CAF50;">${actualPrice}</span> 코인${priceMultiplier !== 1 ? ` <span style="font-size: 11px; color: #999;">(기본: ${item.buyPrice})</span>` : ''}</div>
+                                <div style="font-size: 12px; color: #999;">${stockText}</div>
+                            </div>
+                            <button onclick="window.buyItem('${item.id}')" style="padding: 8px 16px; border-radius: 6px; border: none; background: #4CAF50; color: #fff; cursor: pointer;">구매</button>
                         </div>
-                        <button onclick="window.buyItem('${item.id}')" style="padding: 8px 16px; border-radius: 6px; border: none; background: #4CAF50; color: #fff; cursor: pointer;">구매</button>
                     </div>
-                </div>
-            `
-        })
+                `
+            })
+        }
         
         content += `
                 </div>
@@ -744,7 +845,7 @@ export class UIManagerNew {
                     self.soundSystem.playSound('item_get')
                 }
                 self.showMessage(result.message, false)
-                self.setCoins(self.shopSystem.getPlayerCoins())
+                self.setCoins(self.shopSystem.getCoins())
                 self.showShopPanel() // 상점 패널 새로고침
             } else {
                 self.showMessage(result.message, false)
@@ -764,7 +865,7 @@ export class UIManagerNew {
                     self.soundSystem.playSound('coin_get')
                 }
                 self.showMessage(result.message, false)
-                self.setCoins(self.shopSystem.getPlayerCoins())
+                self.setCoins(self.shopSystem.getCoins())
                 self.updateInventory()
                 self.showShopPanel() // 상점 패널 새로고침
             } else {
@@ -773,11 +874,17 @@ export class UIManagerNew {
         }
         
         ;(window as any).shopFilter = (category: string) => {
-            // TODO: 필터 기능 구현
+            self.shopFilter = category === 'all' ? null : category
             self.showShopPanel()
         }
         
-        this.contextPanel.open('shop', '상점', content)
+        ;(window as any).shopBack = () => {
+            // 펫 상점에서 뒤로가기를 누르면 펫 메뉴로 돌아감
+            self.shopFilter = null
+            self.showPetPanel()
+        }
+        
+        this.contextPanel.open('shop', this.shopFilter === 'pet' ? '펫 상점' : '상점', content)
     }
     
     public setCodexSystem(codexSystem: any) {
@@ -915,7 +1022,7 @@ export class UIManagerNew {
                 self.showMessage(result.message, false)
                 if (result.reward) {
                     if (result.reward.coins) {
-                        self.setCoins(self.shopSystem ? self.shopSystem.getPlayerCoins() + result.reward.coins : result.reward.coins)
+                        self.setCoins(self.shopSystem ? self.shopSystem.getCoins() + result.reward.coins : result.reward.coins)
                     }
                     if (result.reward.tokens) {
                         self.setTokens(result.reward.tokens)
@@ -1911,6 +2018,8 @@ export class UIManagerNew {
         this.contextPanel.close()
     }
 
+    private customizationFilterCategory: string | null = null
+
     private showCustomizationPanel() {
         if (!this.customizationSystem) {
             this.contextPanel.open('customize', '커스터마이징', '커스터마이징 시스템이 없습니다.')
@@ -1918,6 +2027,7 @@ export class UIManagerNew {
         }
 
         const categories: Array<{ id: string; name: string }> = [
+            { id: 'all', name: '전체' },
             { id: 'top', name: '상의' },
             { id: 'bottom', name: '하의' },
             { id: 'shoes', name: '신발' },
@@ -1930,8 +2040,9 @@ export class UIManagerNew {
         `
 
         categories.forEach(cat => {
+            const isActive = (this.customizationFilterCategory === null && cat.id === 'all') || this.customizationFilterCategory === cat.id
             content += `
-                <button onclick="window.customizationFilter('${cat.id}')" style="padding: 8px 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: #fff; cursor: pointer;">${cat.name}</button>
+                <button onclick="window.customizationFilter('${cat.id}')" style="padding: 8px 16px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: ${isActive ? 'rgba(100, 255, 100, 0.3)' : 'rgba(255,255,255,0.1)'}; color: #fff; cursor: pointer;">${cat.name}</button>
             `
         })
 
@@ -1940,8 +2051,12 @@ export class UIManagerNew {
                 <div id="customization-items-list" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; max-height: 500px; overflow-y: auto; padding: 10px;">
         `
 
-        const allClothing = this.customizationSystem.getAllClothing()
-        allClothing.forEach(clothing => {
+        let filteredClothing = this.customizationSystem.getAllClothing()
+        if (this.customizationFilterCategory && this.customizationFilterCategory !== 'all') {
+            filteredClothing = filteredClothing.filter(clothing => clothing.category === this.customizationFilterCategory)
+        }
+
+        filteredClothing.forEach(clothing => {
             const isEquipped = this.customizationSystem.isEquipped(clothing.id)
             const rarityColors: { [key: string]: string } = {
                 'common': 'rgba(200, 200, 200, 0.3)',
@@ -1980,7 +2095,7 @@ export class UIManagerNew {
         }
 
         ;(window as any).customizationFilter = (category: string) => {
-            // 필터 기능은 나중에 구현
+            self.customizationFilterCategory = category === 'all' ? null : category
             self.showCustomizationPanel()
         }
 
@@ -2019,6 +2134,9 @@ export class UIManagerNew {
                 </div>
         `
 
+        // self 변수를 먼저 선언 (forEach 내부에서 사용하기 위해)
+        const self = this
+        
         if (pets.length === 0) {
             content += `
                 <div style="text-align: center; padding: 40px; color: #999;">
@@ -2037,10 +2155,25 @@ export class UIManagerNew {
                 const happinessColor = pet.happiness > 70 ? '#4CAF50' : pet.happiness > 40 ? '#FFA500' : '#FF6B6B'
                 const intimacyColor = pet.intimacy > 70 ? '#4CAF50' : pet.intimacy > 40 ? '#FFA500' : '#FF6B6B'
 
+                // 쿨타임 확인
+                const cooldowns = self.petSystem.getInteractionCooldown ? self.petSystem.getInteractionCooldown(pet.id) : null
+                const playCooldownMinutes = cooldowns ? Math.ceil(cooldowns.play / 1000 / 60) : 0
+                const petCooldownMinutes = cooldowns ? Math.ceil(cooldowns.pet / 1000 / 60) : 0
+                const canPlay = !cooldowns || cooldowns.play === 0
+                const canPet = !cooldowns || cooldowns.pet === 0
+                
+                // 사용 가능한 음식 확인
+                const foodItems = ['사과', '열매', '버섯', '일반 버섯', '희귀 버섯', '황금 열매']
+                const availableFood = foodItems.find(food => self.inventoryManager && self.inventoryManager.getCount(food) > 0)
+                const canFeed = !!availableFood
+                
                 content += `
                     <div style="padding: 20px; border: 2px solid rgba(255,255,255,0.3); border-radius: 10px; background: rgba(255,255,255,0.05);">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-                            <h3 style="margin: 0; font-size: 18px;">${pet.name}</h3>
+                            <div style="flex: 1;">
+                                <h3 style="margin: 0; font-size: 18px; display: inline-block;">${pet.name}</h3>
+                                <button onclick="window.changePetName('${pet.id}')" style="margin-left: 10px; padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: #fff; cursor: pointer; font-size: 10px;">이름 변경</button>
+                            </div>
                             <span style="font-size: 12px; color: #aaa;">Lv.${pet.level}</span>
                         </div>
                         <div style="width: 80px; height: 80px; margin: 0 auto 15px; background: ${pet.appearance && pet.appearance.color ? `rgb(${Math.floor(pet.appearance.color.r * 255)}, ${Math.floor(pet.appearance.color.g * 255)}, ${Math.floor(pet.appearance.color.b * 255)})` : '#666'}; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3);"></div>
@@ -2073,10 +2206,10 @@ export class UIManagerNew {
                             </div>
                         </div>
                         
-                        <div style="display: flex; gap: 5px; margin-top: 15px;">
-                            <button onclick="window.feedPet('${pet.id}')" style="flex: 1; padding: 6px 10px; border-radius: 6px; border: none; background: #FF9800; color: #fff; cursor: pointer; font-size: 11px;">음식</button>
-                            <button onclick="window.playWithPet('${pet.id}')" style="flex: 1; padding: 6px 10px; border-radius: 6px; border: none; background: #2196F3; color: #fff; cursor: pointer; font-size: 11px;">놀기</button>
-                            <button onclick="window.petPet('${pet.id}')" style="flex: 1; padding: 6px 10px; border-radius: 6px; border: none; background: #9C27B0; color: #fff; cursor: pointer; font-size: 11px;">쓰다듬기</button>
+                        <div style="display: flex; flex-direction: column; gap: 5px; margin-top: 15px;">
+                            <button onclick="window.feedPet('${pet.id}')" style="width: 100%; padding: 6px 10px; border-radius: 6px; border: none; background: ${canFeed ? '#FF9800' : '#666'}; color: #fff; cursor: ${canFeed ? 'pointer' : 'not-allowed'}; font-size: 11px;" ${!canFeed ? 'disabled' : ''}>음식${availableFood ? ` (${availableFood})` : ' (없음)'}</button>
+                            <button onclick="window.playWithPet('${pet.id}')" style="width: 100%; padding: 6px 10px; border-radius: 6px; border: none; background: ${canPlay ? '#2196F3' : '#666'}; color: #fff; cursor: ${canPlay ? 'pointer' : 'not-allowed'}; font-size: 11px;" ${!canPlay ? 'disabled' : ''}>놀기${!canPlay ? ` (${playCooldownMinutes}분 후)` : ''}</button>
+                            <button onclick="window.petPet('${pet.id}')" style="width: 100%; padding: 6px 10px; border-radius: 6px; border: none; background: ${canPet ? '#9C27B0' : '#666'}; color: #fff; cursor: ${canPet ? 'pointer' : 'not-allowed'}; font-size: 11px;" ${!canPet ? 'disabled' : ''}>쓰다듬기${!canPet ? ` (${petCooldownMinutes}분 후)` : ''}</button>
                         </div>
                         
                         <div style="margin-top: 10px;">
@@ -2095,37 +2228,65 @@ export class UIManagerNew {
             </div>
         `
 
-        // 전역 함수 등록
-        const self = this
+        // 전역 함수 등록 (self는 이미 위에서 선언됨)
         ;(window as any).feedPet = (petId: string) => {
-            const success = self.petSystem.feedPet(petId)
-            if (success) {
-                self.showMessage('펫에게 음식을 주었습니다!', false)
+            const result = self.petSystem.feedPet(petId)
+            if (result.success) {
+                self.showMessage(result.message, false)
+                self.updateInventory() // 인벤토리 업데이트
                 self.showPetPanel()
+            } else {
+                self.showMessage(result.message, false)
             }
         }
 
         ;(window as any).playWithPet = (petId: string) => {
-            const success = self.petSystem.playWithPet(petId)
-            if (success) {
-                self.showMessage('펫과 놀았습니다!', false)
+            const result = self.petSystem.playWithPet(petId)
+            if (result.success) {
+                self.showMessage(result.message, false)
                 self.showPetPanel()
+            } else {
+                self.showMessage(result.message, false)
             }
         }
 
         ;(window as any).petPet = (petId: string) => {
-            const success = self.petSystem.petPet(petId)
-            if (success) {
-                self.showMessage('펫을 쓰다듬었습니다!', false)
+            const result = self.petSystem.petPet(petId)
+            if (result.success) {
+                self.showMessage(result.message, false)
                 self.showPetPanel()
+            } else {
+                self.showMessage(result.message, false)
+            }
+        }
+        
+        ;(window as any).changePetName = (petId: string) => {
+            const pet = self.petSystem.getPet(petId)
+            if (!pet) {
+                self.showMessage('펫을 찾을 수 없습니다.', false)
+                return
+            }
+            
+            const newName = prompt(`펫 이름을 변경하세요 (현재: ${pet.name}):`, pet.name)
+            if (newName === null) return // 취소
+            
+            const result = self.petSystem.changePetName(petId, newName)
+            if (result.success) {
+                self.showMessage(result.message, false)
+                self.showPetPanel()
+            } else {
+                self.showMessage(result.message, false)
             }
         }
 
         ;(window as any).togglePetFollowing = (petId: string) => {
             const pet = self.petSystem.getPet(petId)
             if (pet) {
+                // 상태 변경 전의 값을 저장
+                const wasFollowing = pet.isFollowing
                 self.petSystem.setPetFollowing(petId, !pet.isFollowing)
-                self.showMessage(`${pet.name}가 ${!pet.isFollowing ? '따라옵니다' : '집으로 돌아갑니다'}!`, false)
+                // 변경 후 상태에 맞는 메시지 표시
+                self.showMessage(`${pet.name}가 ${!wasFollowing ? '따라옵니다' : '집으로 돌아갑니다'}!`, false)
                 self.showPetPanel()
             }
         }
@@ -2133,13 +2294,8 @@ export class UIManagerNew {
         ;(window as any).openPetShop = () => {
             // 상점 패널을 열고 펫 카테고리로 필터링
             if (self.shopSystem) {
-                self.showShopPanel()
-                // 펫 카테고리 필터 적용
-                setTimeout(() => {
-                    if ((window as any).filterShopCategory) {
-                        ;(window as any).filterShopCategory('pet')
-                    }
-                }, 100)
+                self.shopFilter = 'pet' // 펫 카테고리 필터 설정
+                self.showShopPanel() // 상점 패널 열기
             } else {
                 self.showMessage('상점 시스템이 없습니다.', false)
             }

@@ -86,7 +86,7 @@ function initGame() {
   gameStartScreen.show()
 
   // 게임 시작 콜백 설정
-  gameStartScreen.setOnGameStart(async (user) => {
+  gameStartScreen.setOnGameStart(async (user, isNewGame) => {
     // 게임 시작 화면 숨기기
     gameStartScreen.hide()
     
@@ -98,7 +98,7 @@ function initGame() {
     }
     
     // 게임 초기화 진행
-    await initializeGameSystems(scene, engine, canvas, authSystem, user)
+    await initializeGameSystems(scene, engine, canvas, authSystem, user, isNewGame)
     
     // 로딩 숨기기
     if (loadingElement) {
@@ -111,7 +111,7 @@ function initGame() {
 }
 
 // 실제 게임 시스템 초기화 함수
-async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLCanvasElement, authSystem: AuthSystem, user: any) {
+async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLCanvasElement, authSystem: AuthSystem, user: any, isNewGame: boolean = false) {
   // 로딩 화면 표시
   const loadingScreen = new LoadingScreen()
   loadingScreen.show()
@@ -149,7 +149,7 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
   // 입력 관리자 및 UI 관리자 생성
   const inputManager = new InputManager(scene);
   const inventoryManager = new InventoryManager();
-  const currencySystem = new CurrencySystem(0, 0); // 초기 코인/토큰
+  const currencySystem = new CurrencySystem(5000, 0); // 초기 코인/토큰 (코인 5000)
   const craftingSystem = new CraftingSystem(inventoryManager);
   const shopSystem = new ShopSystem(inventoryManager);
   const codexSystem = new CodexSystem(inventoryManager);
@@ -192,9 +192,10 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
   let isMiddleButtonDown = false
   let lastMouseX = 0
   let lastMouseY = 0
-  const rotationSpeed = 0.01 // 회전 속도 조정 (더 빠르게)
+  const rotationSpeed = 0.01 // 회전 속도 조정
   
-  const handleMouseDown = (e: MouseEvent) => {
+  // Pointer 이벤트 사용 (더 정확한 버튼 상태 추적)
+  const handlePointerDown = (e: PointerEvent) => {
     if (e.button === 1) { // 마우스 휠 버튼 (중간 버튼)
       isMiddleButtonDown = true
       lastMouseX = e.clientX
@@ -203,23 +204,47 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
       e.stopPropagation()
       e.stopImmediatePropagation()
       canvas.style.cursor = 'grabbing'
-      console.log('마우스 휠 버튼 누름')
+      canvas.setPointerCapture(e.pointerId) // 포인터 캡처
+      console.log('✅ 마우스 휠 버튼 누름 (pointerdown) - 시점 회전 활성화')
     }
   }
   
-  const handleMouseUp = (e: MouseEvent) => {
+  const handlePointerUp = (e: PointerEvent) => {
     if (e.button === 1) {
       isMiddleButtonDown = false
       e.preventDefault()
       e.stopPropagation()
       e.stopImmediatePropagation()
       canvas.style.cursor = 'default'
-      console.log('마우스 휠 버튼 놓음')
+      canvas.releasePointerCapture(e.pointerId) // 포인터 해제
+      console.log('✅ 마우스 휠 버튼 놓음 (pointerup) - 시점 회전 비활성화')
     }
   }
   
-  const handleMouseMove = (e: MouseEvent) => {
-    if (isMiddleButtonDown) {
+  const handlePointerMove = (e: PointerEvent) => {
+    // buttons 속성으로 중간 버튼이 실제로 눌려있는지 확인 (4 = 중간 버튼)
+    const isButtonCurrentlyPressed = (e.buttons & 4) === 4
+    
+    // 버튼이 놓아졌는지 확인
+    if (isMiddleButtonDown && !isButtonCurrentlyPressed) {
+      isMiddleButtonDown = false
+      canvas.style.cursor = 'default'
+      console.log('✅ 마우스 휠 버튼 놓음 (pointermove에서 감지) - 시점 회전 비활성화')
+      return
+    }
+    
+    // 버튼이 눌려있는 동안에만 회전
+    if (isButtonCurrentlyPressed) {
+      // pointerdown이 발생하지 않았지만 buttons=4인 경우
+      if (!isMiddleButtonDown) {
+        isMiddleButtonDown = true
+        lastMouseX = e.clientX
+        lastMouseY = e.clientY
+        canvas.style.cursor = 'grabbing'
+        console.log('✅ 마우스 휠 버튼 감지 (pointermove에서 buttons=4) - 시점 회전 활성화')
+        return
+      }
+      
       const deltaX = e.clientX - lastMouseX
       const deltaY = e.clientY - lastMouseY
       
@@ -241,19 +266,21 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
     }
   }
   
-  // 이벤트 리스너 추가 (capture 단계에서도 처리, 가장 높은 우선순위)
-  canvas.addEventListener('mousedown', handleMouseDown, { capture: true, passive: false })
-  canvas.addEventListener('mouseup', handleMouseUp, { capture: true, passive: false })
-  canvas.addEventListener('mousemove', handleMouseMove, { capture: true, passive: false })
+  // 이벤트 리스너 추가 (Pointer 이벤트 사용)
+  console.log('카메라 컨트롤 이벤트 리스너 등록 중...')
+  canvas.addEventListener('pointerdown', handlePointerDown, { capture: true, passive: false })
+  canvas.addEventListener('pointerup', handlePointerUp, { capture: true, passive: false })
+  canvas.addEventListener('pointermove', handlePointerMove, { capture: true, passive: false })
   
-  // 전역 이벤트도 처리 (마우스가 캔버스 밖으로 나갔을 때)
-  const handleGlobalMouseUp = (e: MouseEvent) => {
+  // 전역 이벤트도 처리
+  const handleGlobalPointerUp = (e: PointerEvent) => {
     if (e.button === 1) {
       isMiddleButtonDown = false
       canvas.style.cursor = 'default'
+      console.log('✅ 전역 pointerup - 중간 버튼 상태 리셋')
     }
   }
-  window.addEventListener('mouseup', handleGlobalMouseUp, { capture: true })
+  window.addEventListener('pointerup', handleGlobalPointerUp, { capture: true })
   
   // 마우스 휠로 줌 인/아웃
   const handleWheel = (e: WheelEvent) => {
@@ -261,7 +288,6 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
     e.stopPropagation()
     e.stopImmediatePropagation()
     
-    // 마우스 휠로 줌 인/아웃 (반경 조절)
     const currentRadius = camera.radius
     const zoomSpeed = 0.5
     const newRadius = currentRadius + e.deltaY * zoomSpeed
@@ -276,7 +302,7 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
     canvas.style.cursor = 'default'
   })
   
-  // auxclick 이벤트도 처리 (일부 브라우저에서 중간 버튼 클릭)
+  // auxclick 이벤트 처리 (contextmenu 방지)
   canvas.addEventListener('auxclick', (e: MouseEvent) => {
     if (e.button === 1) {
       e.preventDefault()
@@ -284,6 +310,17 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
       e.stopImmediatePropagation()
     }
   }, { capture: true, passive: false })
+  
+  // contextmenu 이벤트도 처리 (중간 버튼 클릭 시 발생할 수 있음)
+  canvas.addEventListener('contextmenu', (e: MouseEvent) => {
+    // 중간 버튼과 관련된 contextmenu는 무시
+    if (e.button === 1 || (e as any).which === 2) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+  }, { capture: true, passive: false })
+  
+  console.log('✅ 카메라 컨트롤 이벤트 리스너 등록 완료')
 
   camera.upperBetaLimit = Math.PI / 2.2
   camera.lowerRadiusLimit = 8
@@ -491,22 +528,26 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
   body.parent = playerMesh;
 
   const leftLeg = MeshBuilder.CreateBox("leftLeg", { width: 0.2, height: 0.6, depth: 0.2 }, scene);
-  leftLeg.position = new Vector3(-0.15, 0.3, 0);
+  // 다리를 몸통에 더 가깝게 배치하여 회전 시 분리감 감소
+  leftLeg.position = new Vector3(-0.1, 0.3, 0); // -0.15 -> -0.1
   leftLeg.material = pantsMat;
   leftLeg.parent = playerMesh;
 
   const rightLeg = MeshBuilder.CreateBox("rightLeg", { width: 0.2, height: 0.6, depth: 0.2 }, scene);
-  rightLeg.position = new Vector3(0.15, 0.3, 0);
+  // 다리를 몸통에 더 가깝게 배치
+  rightLeg.position = new Vector3(0.1, 0.3, 0); // 0.15 -> 0.1
   rightLeg.material = pantsMat;
   rightLeg.parent = playerMesh;
 
   const leftArm = MeshBuilder.CreateBox("leftArm", { width: 0.15, height: 0.5, depth: 0.15 }, scene);
-  leftArm.position = new Vector3(-0.35, 0.85, 0);
+  // 팔을 몸통에 더 가깝게 배치하여 회전 시 분리감 감소
+  leftArm.position = new Vector3(-0.3, 0.85, 0); // -0.35 -> -0.3
   leftArm.material = skinMat;
   leftArm.parent = playerMesh;
 
   const rightArm = MeshBuilder.CreateBox("rightArm", { width: 0.15, height: 0.5, depth: 0.15 }, scene);
-  rightArm.position = new Vector3(0.35, 0.85, 0);
+  // 팔을 몸통에 더 가깝게 배치
+  rightArm.position = new Vector3(0.3, 0.85, 0); // 0.35 -> 0.3
   rightArm.material = skinMat;
   rightArm.parent = playerMesh;
 
@@ -633,35 +674,41 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
   // 설정 패널 초기화 (soundSystem 초기화 이후에 설정)
   // soundSystem이 초기화된 후에 설정 패널을 생성하도록 아래로 이동
   
-  // 저장된 게임이 있으면 로드
+  // 저장된 게임이 있으면 로드 (새 게임이 아닌 경우에만)
   let saveData: any = null
   
-  // 초기 로드는 localStorage에서 (빠른 로딩)
-  const localSaveData = localStorage.getItem('animal_life_game_save')
-  if (localSaveData) {
-    try {
-      saveData = JSON.parse(localSaveData)
-    } catch (error) {
-      console.error('로컬 저장 데이터 파싱 오류:', error)
+  if (!isNewGame) {
+    // 초기 로드는 localStorage에서 (빠른 로딩)
+    const localSaveData = localStorage.getItem('animal_life_game_save')
+    if (localSaveData) {
+      try {
+        saveData = JSON.parse(localSaveData)
+      } catch (error) {
+        console.error('로컬 저장 데이터 파싱 오류:', error)
+      }
     }
-  }
-  
-  // Supabase에서 로드 시도 (비동기 - 나중에 동기화)
-  saveSystem.load().then((loadedData) => {
-    if (loadedData && (!saveData || loadedData.timestamp > saveData.timestamp)) {
-      // Supabase 데이터가 더 최신인 경우
-      saveData = loadedData
-      loadGameData(loadedData)
-      // localStorage에도 동기화
-      localStorage.setItem('animal_life_game_save', JSON.stringify(loadedData))
+    
+    // Supabase에서 로드 시도 (비동기 - 나중에 동기화)
+    saveSystem.load().then((loadedData) => {
+      if (loadedData && (!saveData || loadedData.timestamp > saveData.timestamp)) {
+        // Supabase 데이터가 더 최신인 경우
+        saveData = loadedData
+        loadGameData(loadedData)
+        // localStorage에도 동기화
+        localStorage.setItem('animal_life_game_save', JSON.stringify(loadedData))
+      }
+    }).catch((error) => {
+      console.error('게임 로드 오류:', error)
+    })
+    
+    // 로컬 데이터가 있으면 먼저 로드
+    if (saveData) {
+      loadGameData(saveData)
     }
-  }).catch((error) => {
-    console.error('게임 로드 오류:', error)
-  })
-  
-  // 로컬 데이터가 있으면 먼저 로드
-  if (saveData) {
-    loadGameData(saveData)
+  } else {
+    // 새 게임 시작 시 저장된 데이터 삭제
+    localStorage.removeItem('animal_life_game_save')
+    console.log('새 게임 시작 - 저장된 데이터 삭제됨')
   }
   
   function loadGameData(saveData: any) {

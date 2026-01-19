@@ -148,4 +148,8 @@ export class ContextPanel {
     public setOnToggle(callback: (isOpen: boolean) => void) {
         this.onToggle = callback
     }
+
+    public getContentElement(): HTMLDivElement {
+        return this.contentElement
+    }
 }

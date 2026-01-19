@@ -5,7 +5,7 @@ export class GameStartScreen {
   private element: HTMLDivElement
   private authSystem: AuthSystem
   private authPanel: AuthPanel
-  private onGameStart?: (user: AuthUser) => void
+  private onGameStart?: (user: AuthUser, isNewGame: boolean) => void
   private currentUser: AuthUser | null = null
 
   constructor(authSystem: AuthSystem) {
@@ -138,10 +138,10 @@ export class GameStartScreen {
     const newGameBtn = this.element.querySelector('#btn-new-game') as HTMLButtonElement
     newGameBtn.addEventListener('click', () => {
       if (this.currentUser && this.onGameStart) {
-        this.onGameStart(this.currentUser)
+        this.onGameStart(this.currentUser, true) // 새 게임 플래그
       } else {
         // 로그인하지 않은 경우 게스트로 시작
-        this.startAsGuest()
+        this.startAsGuest(true) // 새 게임 플래그
       }
     })
 
@@ -149,7 +149,7 @@ export class GameStartScreen {
     const continueBtn = this.element.querySelector('#btn-continue') as HTMLButtonElement
     continueBtn.addEventListener('click', () => {
       if (this.currentUser && this.onGameStart) {
-        this.onGameStart(this.currentUser)
+        this.onGameStart(this.currentUser, false) // 이어하기 플래그
       }
     })
 
@@ -200,7 +200,7 @@ export class GameStartScreen {
         this.currentUser = result.user
         this.updateUI()
         if (this.onGameStart) {
-          this.onGameStart(result.user)
+          this.onGameStart(result.user, true) // 새 게임 플래그
         }
       } else {
         this.authPanel.showError(result.error?.message || '게스트 로그인에 실패했습니다.')
@@ -251,13 +251,13 @@ export class GameStartScreen {
     this.authPanel.show()
   }
 
-  private async startAsGuest() {
+  private async startAsGuest(isNewGame: boolean = false) {
     const result = await this.authSystem.signInAnonymously()
     if (result.success && result.user) {
       this.currentUser = result.user
       this.updateUI()
       if (this.onGameStart) {
-        this.onGameStart(result.user)
+        this.onGameStart(result.user, isNewGame)
       }
     }
   }
@@ -270,7 +270,7 @@ export class GameStartScreen {
     this.element.style.display = 'none'
   }
 
-  public setOnGameStart(callback: (user: AuthUser) => void) {
+  public setOnGameStart(callback: (user: AuthUser, isNewGame: boolean) => void) {
     this.onGameStart = callback
   }
 }
