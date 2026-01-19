@@ -187,36 +187,44 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
   // 카메라 컨트롤 설정 - 마우스 휠 버튼(중간 버튼) 드래그로 시점 변경
   camera.attachControl(canvas, true)
   
-  // 우클릭 드래그 비활성화
+  // 모든 기본 포인터 입력 비활성화 (커스텀 컨트롤 사용)
   if (camera.inputs && camera.inputs.attached.pointers) {
     // @ts-ignore
-    camera.inputs.attached.pointers.buttons = [] // 빈 배열로 설정하여 드래그 비활성화
+    camera.inputs.attached.pointers.buttons = [] // 빈 배열로 설정하여 모든 드래그 비활성화
     camera.panningSensibility = 0
+    // @ts-ignore
+    camera.inputs.attached.pointers.angularSensibilityX = 0
+    // @ts-ignore
+    camera.inputs.attached.pointers.angularSensibilityY = 0
   }
   
   // 마우스 휠 버튼(중간 버튼) 드래그로 시점 회전
   let isMiddleButtonDown = false
   let lastMouseX = 0
   let lastMouseY = 0
-  const rotationSpeed = 0.01
+  const rotationSpeed = 0.005 // 회전 속도 조정
   
-  canvas.addEventListener('mousedown', (e: MouseEvent) => {
+  const handleMouseDown = (e: MouseEvent) => {
     if (e.button === 1) { // 마우스 휠 버튼 (중간 버튼)
       isMiddleButtonDown = true
       lastMouseX = e.clientX
       lastMouseY = e.clientY
       e.preventDefault()
+      e.stopPropagation()
+      canvas.style.cursor = 'grabbing'
     }
-  })
+  }
   
-  canvas.addEventListener('mouseup', (e: MouseEvent) => {
+  const handleMouseUp = (e: MouseEvent) => {
     if (e.button === 1) {
       isMiddleButtonDown = false
       e.preventDefault()
+      e.stopPropagation()
+      canvas.style.cursor = 'default'
     }
-  })
+  }
   
-  canvas.addEventListener('mousemove', (e: MouseEvent) => {
+  const handleMouseMove = (e: MouseEvent) => {
     if (isMiddleButtonDown) {
       const deltaX = e.clientX - lastMouseX
       const deltaY = e.clientY - lastMouseY
@@ -232,23 +240,41 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
       lastMouseX = e.clientX
       lastMouseY = e.clientY
       e.preventDefault()
+      e.stopPropagation()
+    }
+  }
+  
+  // 이벤트 리스너 추가 (capture 단계에서도 처리)
+  canvas.addEventListener('mousedown', handleMouseDown, { capture: true, passive: false })
+  canvas.addEventListener('mouseup', handleMouseUp, { capture: true, passive: false })
+  canvas.addEventListener('mousemove', handleMouseMove, { capture: true, passive: false })
+  
+  // 전역 이벤트도 처리 (마우스가 캔버스 밖으로 나갔을 때)
+  window.addEventListener('mouseup', (e: MouseEvent) => {
+    if (e.button === 1) {
+      isMiddleButtonDown = false
+      canvas.style.cursor = 'default'
     }
   })
   
   // 마우스 휠로 줌 인/아웃
-  canvas.addEventListener('wheel', (e: WheelEvent) => {
+  const handleWheel = (e: WheelEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     
     // 마우스 휠로 줌 인/아웃 (반경 조절)
     const currentRadius = camera.radius
     const zoomSpeed = 0.5
     const newRadius = currentRadius + e.deltaY * zoomSpeed
     camera.radius = Math.max(camera.lowerRadiusLimit || 8, Math.min(camera.upperRadiusLimit || 20, newRadius))
-  }, { passive: false })
+  }
+  
+  canvas.addEventListener('wheel', handleWheel, { capture: true, passive: false })
   
   // 마우스가 캔버스 밖으로 나가면 중간 버튼 상태 리셋
   canvas.addEventListener('mouseleave', () => {
     isMiddleButtonDown = false
+    canvas.style.cursor = 'default'
   })
 
   camera.upperBetaLimit = Math.PI / 2.2
