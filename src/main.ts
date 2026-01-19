@@ -184,42 +184,72 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
     scene
   )
 
-  // 카메라 컨트롤 설정 - 마우스 휠로만 제어
+  // 카메라 컨트롤 설정 - 마우스 휠 버튼(중간 버튼) 드래그로 시점 변경
   camera.attachControl(canvas, true)
   
-  // 우클릭 드래그 비활성화 (마우스 휠만 사용)
+  // 우클릭 드래그 비활성화
   if (camera.inputs && camera.inputs.attached.pointers) {
     // @ts-ignore
     camera.inputs.attached.pointers.buttons = [] // 빈 배열로 설정하여 드래그 비활성화
     camera.panningSensibility = 0
   }
   
-  // 마우스 휠로 시점 회전 및 줌 제어
-  let isWheelRotating = false
-  let wheelRotationSpeed = 0.02
+  // 마우스 휠 버튼(중간 버튼) 드래그로 시점 회전
+  let isMiddleButtonDown = false
+  let lastMouseX = 0
+  let lastMouseY = 0
+  const rotationSpeed = 0.01
   
+  canvas.addEventListener('mousedown', (e: MouseEvent) => {
+    if (e.button === 1) { // 마우스 휠 버튼 (중간 버튼)
+      isMiddleButtonDown = true
+      lastMouseX = e.clientX
+      lastMouseY = e.clientY
+      e.preventDefault()
+    }
+  })
+  
+  canvas.addEventListener('mouseup', (e: MouseEvent) => {
+    if (e.button === 1) {
+      isMiddleButtonDown = false
+      e.preventDefault()
+    }
+  })
+  
+  canvas.addEventListener('mousemove', (e: MouseEvent) => {
+    if (isMiddleButtonDown) {
+      const deltaX = e.clientX - lastMouseX
+      const deltaY = e.clientY - lastMouseY
+      
+      // 수평 회전 (알파 각도)
+      camera.alpha -= deltaX * rotationSpeed
+      
+      // 수직 회전 (베타 각도)
+      camera.beta -= deltaY * rotationSpeed
+      // 베타 각도 제한
+      camera.beta = Math.max(0.1, Math.min(Math.PI / 2.2, camera.beta))
+      
+      lastMouseX = e.clientX
+      lastMouseY = e.clientY
+      e.preventDefault()
+    }
+  })
+  
+  // 마우스 휠로 줌 인/아웃
   canvas.addEventListener('wheel', (e: WheelEvent) => {
     e.preventDefault()
     
-    // Shift 키를 누르면 수평 회전 (알파 각도)
-    if (e.shiftKey) {
-      camera.alpha += e.deltaY * wheelRotationSpeed
-    }
-    // Ctrl 키를 누르면 수직 회전 (베타 각도)
-    else if (e.ctrlKey || e.metaKey) {
-      camera.beta += e.deltaY * wheelRotationSpeed
-      // 베타 각도 제한
-      camera.beta = Math.max(0.1, Math.min(Math.PI / 2.2, camera.beta))
-    }
-    // 기본: 줌 인/아웃 (반경 조절)
-    else {
-      // Babylon.js의 기본 휠 줌 사용
-      const currentRadius = camera.radius
-      const zoomSpeed = 0.5
-      const newRadius = currentRadius + e.deltaY * zoomSpeed
-      camera.radius = Math.max(camera.lowerRadiusLimit || 8, Math.min(camera.upperRadiusLimit || 20, newRadius))
-    }
+    // 마우스 휠로 줌 인/아웃 (반경 조절)
+    const currentRadius = camera.radius
+    const zoomSpeed = 0.5
+    const newRadius = currentRadius + e.deltaY * zoomSpeed
+    camera.radius = Math.max(camera.lowerRadiusLimit || 8, Math.min(camera.upperRadiusLimit || 20, newRadius))
   }, { passive: false })
+  
+  // 마우스가 캔버스 밖으로 나가면 중간 버튼 상태 리셋
+  canvas.addEventListener('mouseleave', () => {
+    isMiddleButtonDown = false
+  })
 
   camera.upperBetaLimit = Math.PI / 2.2
   camera.lowerRadiusLimit = 8
