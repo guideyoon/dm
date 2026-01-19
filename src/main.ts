@@ -185,24 +185,14 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
   )
 
   // 카메라 컨트롤 설정 - 마우스 휠 버튼(중간 버튼) 드래그로 시점 변경
-  camera.attachControl(canvas, true)
-  
-  // 모든 기본 포인터 입력 비활성화 (커스텀 컨트롤 사용)
-  if (camera.inputs && camera.inputs.attached.pointers) {
-    // @ts-ignore
-    camera.inputs.attached.pointers.buttons = [] // 빈 배열로 설정하여 모든 드래그 비활성화
-    camera.panningSensibility = 0
-    // @ts-ignore
-    camera.inputs.attached.pointers.angularSensibilityX = 0
-    // @ts-ignore
-    camera.inputs.attached.pointers.angularSensibilityY = 0
-  }
+  // 기본 컨트롤은 완전히 비활성화하고 커스텀 컨트롤만 사용
+  camera.detachControl()
   
   // 마우스 휠 버튼(중간 버튼) 드래그로 시점 회전
   let isMiddleButtonDown = false
   let lastMouseX = 0
   let lastMouseY = 0
-  const rotationSpeed = 0.005 // 회전 속도 조정
+  const rotationSpeed = 0.01 // 회전 속도 조정 (더 빠르게)
   
   const handleMouseDown = (e: MouseEvent) => {
     if (e.button === 1) { // 마우스 휠 버튼 (중간 버튼)
@@ -211,7 +201,9 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
       lastMouseY = e.clientY
       e.preventDefault()
       e.stopPropagation()
+      e.stopImmediatePropagation()
       canvas.style.cursor = 'grabbing'
+      console.log('마우스 휠 버튼 누름')
     }
   }
   
@@ -220,7 +212,9 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
       isMiddleButtonDown = false
       e.preventDefault()
       e.stopPropagation()
+      e.stopImmediatePropagation()
       canvas.style.cursor = 'default'
+      console.log('마우스 휠 버튼 놓음')
     }
   }
   
@@ -229,38 +223,43 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
       const deltaX = e.clientX - lastMouseX
       const deltaY = e.clientY - lastMouseY
       
-      // 수평 회전 (알파 각도)
-      camera.alpha -= deltaX * rotationSpeed
-      
-      // 수직 회전 (베타 각도)
-      camera.beta -= deltaY * rotationSpeed
-      // 베타 각도 제한
-      camera.beta = Math.max(0.1, Math.min(Math.PI / 2.2, camera.beta))
-      
-      lastMouseX = e.clientX
-      lastMouseY = e.clientY
-      e.preventDefault()
-      e.stopPropagation()
+      if (Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0) {
+        // 수평 회전 (알파 각도)
+        camera.alpha -= deltaX * rotationSpeed
+        
+        // 수직 회전 (베타 각도)
+        camera.beta -= deltaY * rotationSpeed
+        // 베타 각도 제한
+        camera.beta = Math.max(0.1, Math.min(Math.PI / 2.2, camera.beta))
+        
+        lastMouseX = e.clientX
+        lastMouseY = e.clientY
+        e.preventDefault()
+        e.stopPropagation()
+        e.stopImmediatePropagation()
+      }
     }
   }
   
-  // 이벤트 리스너 추가 (capture 단계에서도 처리)
+  // 이벤트 리스너 추가 (capture 단계에서도 처리, 가장 높은 우선순위)
   canvas.addEventListener('mousedown', handleMouseDown, { capture: true, passive: false })
   canvas.addEventListener('mouseup', handleMouseUp, { capture: true, passive: false })
   canvas.addEventListener('mousemove', handleMouseMove, { capture: true, passive: false })
   
   // 전역 이벤트도 처리 (마우스가 캔버스 밖으로 나갔을 때)
-  window.addEventListener('mouseup', (e: MouseEvent) => {
+  const handleGlobalMouseUp = (e: MouseEvent) => {
     if (e.button === 1) {
       isMiddleButtonDown = false
       canvas.style.cursor = 'default'
     }
-  })
+  }
+  window.addEventListener('mouseup', handleGlobalMouseUp, { capture: true })
   
   // 마우스 휠로 줌 인/아웃
   const handleWheel = (e: WheelEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    e.stopImmediatePropagation()
     
     // 마우스 휠로 줌 인/아웃 (반경 조절)
     const currentRadius = camera.radius
@@ -276,6 +275,15 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
     isMiddleButtonDown = false
     canvas.style.cursor = 'default'
   })
+  
+  // auxclick 이벤트도 처리 (일부 브라우저에서 중간 버튼 클릭)
+  canvas.addEventListener('auxclick', (e: MouseEvent) => {
+    if (e.button === 1) {
+      e.preventDefault()
+      e.stopPropagation()
+      e.stopImmediatePropagation()
+    }
+  }, { capture: true, passive: false })
 
   camera.upperBetaLimit = Math.PI / 2.2
   camera.lowerRadiusLimit = 8
