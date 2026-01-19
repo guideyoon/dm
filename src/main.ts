@@ -55,93 +55,13 @@ function initGame() {
     return
   }
   
-  // 오른쪽 마우스 클릭 메뉴 비활성화 (여러 방법으로 확실히 차단)
-  const disableContextMenu = (e: Event) => {
-    e.preventDefault()
-    e.stopPropagation()
-    e.stopImmediatePropagation()
-    return false
-  }
-  
-  // 여러 단계에서 차단 (최대한 강력하게)
-  // 1. contextmenu 이벤트 차단
-  canvas.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false })
-  canvas.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false })
-  canvas.oncontextmenu = (e) => { e.preventDefault(); return false; }
-  
-  // 2. window, document에도 추가
-  window.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false })
-  window.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false })
-  window.oncontextmenu = (e) => { e?.preventDefault(); return false; }
-  document.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false })
-  document.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false })
-  document.oncontextmenu = (e) => { e?.preventDefault(); return false; }
-  
-  // 3. body에도 추가
-  document.body.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false })
-  document.body.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false })
-  document.body.oncontextmenu = (e) => { e?.preventDefault(); return false; }
-  
-  // 4. 마우스 버튼 이벤트에서도 차단 (우클릭 감지)
-  const blockRightClick = (e: MouseEvent) => {
-    if (e.button === 2) {
-      e.preventDefault()
-      e.stopPropagation()
-      e.stopImmediatePropagation()
-      return false
-    }
-  }
-  
-  canvas.addEventListener('mousedown', blockRightClick, { capture: true, passive: false })
-  canvas.addEventListener('mouseup', blockRightClick, { capture: true, passive: false })
-  window.addEventListener('mousedown', blockRightClick, { capture: true, passive: false })
-  window.addEventListener('mouseup', blockRightClick, { capture: true, passive: false })
-  
-  // 5. auxclick 이벤트도 차단 (보조 버튼 클릭)
-  canvas.addEventListener('auxclick', disableContextMenu, { capture: true, passive: false })
-  window.addEventListener('auxclick', disableContextMenu, { capture: true, passive: false })
+  // 우클릭 차단 코드 제거 - 마우스 휠로 시점 변경 사용
 
   // Babylon.js 엔진 생성
   const engine = new Engine(canvas, true, {
     preserveDrawingBuffer: true,
     stencil: true
   })
-  
-  // WebGL 컨텍스트 생성 후 canvas에 다시 이벤트 리스너 강제 적용
-  // 크롬에서 WebGL 컨텍스트가 생성되면 이벤트 리스너가 리셋될 수 있음
-  const reapplyContextMenuBlock = () => {
-    // 기존 리스너 제거 후 다시 추가
-    const newDisableContextMenu = (e: Event) => {
-      e.preventDefault()
-      e.stopPropagation()
-      e.stopImmediatePropagation()
-      return false
-    }
-    
-    const newBlockRightClick = (e: MouseEvent) => {
-      if (e.button === 2) {
-        e.preventDefault()
-        e.stopPropagation()
-        e.stopImmediatePropagation()
-        return false
-      }
-    }
-    
-    // 여러 번 추가하여 확실히 차단
-    for (let i = 0; i < 3; i++) {
-      canvas.addEventListener('contextmenu', newDisableContextMenu, { capture: true, passive: false })
-      canvas.addEventListener('mousedown', newBlockRightClick, { capture: true, passive: false })
-      canvas.addEventListener('mouseup', newBlockRightClick, { capture: true, passive: false })
-    }
-    
-    // oncontextmenu 속성도 다시 설정
-    canvas.oncontextmenu = () => false
-  }
-  
-  // 엔진이 준비된 후 여러 번 적용 (크롬에서 WebGL 컨텍스트가 지연될 수 있음)
-  setTimeout(reapplyContextMenuBlock, 50)
-  setTimeout(reapplyContextMenuBlock, 200)
-  setTimeout(reapplyContextMenuBlock, 500)
 
   // 씬 생성
   const scene = new Scene(engine)
@@ -264,41 +184,42 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
     scene
   )
 
+  // 카메라 컨트롤 설정 - 마우스 휠로만 제어
   camera.attachControl(canvas, true)
+  
+  // 우클릭 드래그 비활성화 (마우스 휠만 사용)
   if (camera.inputs && camera.inputs.attached.pointers) {
     // @ts-ignore
-    camera.inputs.attached.pointers.buttons = [2]
+    camera.inputs.attached.pointers.buttons = [] // 빈 배열로 설정하여 드래그 비활성화
     camera.panningSensibility = 0
-    
-    // 우클릭 컨텍스트 메뉴 차단 (Babylon.js 카메라 컨트롤 내부)
-    const originalOnContextMenu = canvas.oncontextmenu
-    canvas.oncontextmenu = function(e) {
-      if (e) {
-        e.preventDefault()
-        e.stopPropagation()
-        e.stopImmediatePropagation()
-      }
-      return false
-    }
   }
   
-  // Babylon.js 씬의 포인터 이벤트에서도 컨텍스트 메뉴 차단
-  scene.onPointerObservable.add((pointerInfo) => {
-    if (pointerInfo.event) {
-      const mouseEvent = pointerInfo.event as MouseEvent
-      if (mouseEvent.button === 2) {
-        mouseEvent.preventDefault()
-        mouseEvent.stopPropagation()
-        mouseEvent.stopImmediatePropagation()
-      }
-      // 컨텍스트 메뉴 이벤트도 차단
-      if (pointerInfo.type === 4) { // POINTERMOVE나 다른 이벤트에서도
-        mouseEvent.preventDefault()
-      }
-    }
-  })
+  // 마우스 휠로 시점 회전 및 줌 제어
+  let isWheelRotating = false
+  let wheelRotationSpeed = 0.02
   
-  // 이미 위에서 차단했으므로 중복 제거
+  canvas.addEventListener('wheel', (e: WheelEvent) => {
+    e.preventDefault()
+    
+    // Shift 키를 누르면 수평 회전 (알파 각도)
+    if (e.shiftKey) {
+      camera.alpha += e.deltaY * wheelRotationSpeed
+    }
+    // Ctrl 키를 누르면 수직 회전 (베타 각도)
+    else if (e.ctrlKey || e.metaKey) {
+      camera.beta += e.deltaY * wheelRotationSpeed
+      // 베타 각도 제한
+      camera.beta = Math.max(0.1, Math.min(Math.PI / 2.2, camera.beta))
+    }
+    // 기본: 줌 인/아웃 (반경 조절)
+    else {
+      // Babylon.js의 기본 휠 줌 사용
+      const currentRadius = camera.radius
+      const zoomSpeed = 0.5
+      const newRadius = currentRadius + e.deltaY * zoomSpeed
+      camera.radius = Math.max(camera.lowerRadiusLimit || 8, Math.min(camera.upperRadiusLimit || 20, newRadius))
+    }
+  }, { passive: false })
 
   camera.upperBetaLimit = Math.PI / 2.2
   camera.lowerRadiusLimit = 8
