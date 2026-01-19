@@ -31,6 +31,12 @@
       -webkit-user-select: none;
       -moz-user-select: none;
       -ms-user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-user-drag: none;
+      -khtml-user-drag: none;
+      -moz-user-drag: none;
+      -o-user-drag: none;
+      user-drag: none;
     }
     
     body {
@@ -49,56 +55,80 @@
       color: #333;
     }
   </style>
-  <script type="module" crossorigin src="/dm/assets/index-ChOQoJ3r.js"></script>
+  <script type="module" crossorigin src="/dm/assets/index-CotpFw9z.js"></script>
 </head>
 <body oncontextmenu="return false;" ondragstart="return false;" onselectstart="return false;">
   <div id="loading">게임을 로딩 중...</div>
   <canvas id="renderCanvas" oncontextmenu="return false;" ondragstart="return false;"></canvas>
   <script>
-    // 즉시 실행 - 캔버스 로드 전에 컨텍스트 메뉴 차단
+    // 즉시 실행 - 캔버스 로드 전에 컨텍스트 메뉴 차단 (더 강력하게)
     (function() {
       function disableContextMenu(e) {
-        if (e && e.preventDefault) {
-          e.preventDefault();
-        }
-        if (e && e.stopPropagation) {
-          e.stopPropagation();
-        }
-        if (e && e.stopImmediatePropagation) {
-          e.stopImmediatePropagation();
+        if (e) {
+          if (e.preventDefault) e.preventDefault();
+          if (e.stopPropagation) e.stopPropagation();
+          if (e.stopImmediatePropagation) e.stopImmediatePropagation();
         }
         return false;
       }
       
-      // 전역 차단 (즉시 실행)
-      document.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false });
-      document.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false });
-      window.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false });
-      window.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false });
+      function disableRightClick(e) {
+        if (e && e.button === 2) {
+          if (e.preventDefault) e.preventDefault();
+          if (e.stopPropagation) e.stopPropagation();
+          if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+          return false;
+        }
+      }
+      
+      // 전역 차단 (즉시 실행) - 모든 가능한 방법으로
+      const options = { capture: true, passive: false };
+      const options2 = { capture: false, passive: false };
+      
+      // contextmenu 이벤트 차단
+      document.addEventListener('contextmenu', disableContextMenu, options);
+      document.addEventListener('contextmenu', disableContextMenu, options2);
+      window.addEventListener('contextmenu', disableContextMenu, options);
+      window.addEventListener('contextmenu', disableContextMenu, options2);
+      
+      // 우클릭 버튼 차단
+      document.addEventListener('mousedown', disableRightClick, options);
+      document.addEventListener('mouseup', disableRightClick, options);
+      document.addEventListener('mousedown', disableRightClick, options2);
+      document.addEventListener('mouseup', disableRightClick, options2);
+      
+      // oncontextmenu 속성으로도 차단
+      document.oncontextmenu = function() { return false; };
+      window.oncontextmenu = function() { return false; };
       
       // DOM 로드 전에도 실행
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() {
-          const canvas = document.getElementById('renderCanvas');
-          if (canvas) {
-            canvas.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false });
-            canvas.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false });
-            canvas.oncontextmenu = function() { return false; };
-          }
-        });
-      } else {
-        // DOM이 이미 로드된 경우 즉시 실행
+      function setupCanvas() {
         const canvas = document.getElementById('renderCanvas');
         if (canvas) {
-          canvas.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false });
-          canvas.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false });
+          // 모든 가능한 방법으로 차단
+          canvas.addEventListener('contextmenu', disableContextMenu, options);
+          canvas.addEventListener('contextmenu', disableContextMenu, options2);
+          canvas.addEventListener('mousedown', disableRightClick, options);
+          canvas.addEventListener('mouseup', disableRightClick, options);
+          canvas.addEventListener('mousedown', disableRightClick, options2);
+          canvas.addEventListener('mouseup', disableRightClick, options2);
           canvas.oncontextmenu = function() { return false; };
         }
       }
       
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', setupCanvas);
+      } else {
+        setupCanvas();
+      }
+      
       // 선택 및 드래그 방지
-      document.addEventListener('selectstart', disableContextMenu, { capture: true });
-      document.addEventListener('dragstart', disableContextMenu, { capture: true });
+      document.addEventListener('selectstart', disableContextMenu, options);
+      document.addEventListener('dragstart', disableContextMenu, options);
+      
+      // 추가: 포인터 이벤트도 차단
+      document.addEventListener('pointerdown', disableRightClick, options);
+      document.addEventListener('pointerup', disableRightClick, options);
     })();
   </script>
 </body>
