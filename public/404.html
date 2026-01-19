@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>동물의 숲 3D 게임</title>
+  <script>
+    // GitHub Pages에서 SPA 라우팅을 위한 리다이렉트
+    // 404.html은 GitHub Pages에서 자동으로 사용됨
+    const path = window.location.pathname;
+    const segments = path.split('/').filter(Boolean);
+    
+    // /dm/ 경로로 리다이렉트
+    if (segments[0] !== 'dm') {
+      window.location.replace('/dm/');
+    } else {
+      // /dm/ 경로 내에서도 index.html로 리다이렉트
+      window.location.replace('/dm/index.html');
+    }
+  </script>
+</head>
+<body>
+  <div>리다이렉트 중...</div>
+</body>
+</html>

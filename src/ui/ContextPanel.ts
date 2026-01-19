@@ -6,6 +6,7 @@ export class ContextPanel {
     private contentElement!: HTMLDivElement
     private isOpen: boolean = false
     private currentMenu: MenuType | null = null
+    private onToggle: ((isOpen: boolean) => void) | null = null
 
     constructor() {
         this.element = document.createElement('div')
@@ -92,6 +93,9 @@ export class ContextPanel {
     public open(menu: MenuType, title: string, content: string | HTMLElement) {
         this.currentMenu = menu
         this.isOpen = true
+        if (this.onToggle) {
+            this.onToggle(true)
+        }
         
         const titleElement = this.headerElement.querySelector('#panel-title') as HTMLElement
         if (titleElement) titleElement.textContent = title
@@ -113,6 +117,9 @@ export class ContextPanel {
     public close() {
         this.isOpen = false
         this.currentMenu = null
+        if (this.onToggle) {
+            this.onToggle(false)
+        }
         
         // 애니메이션: 페이드 아웃 + 슬라이드 아웃
         this.element.style.opacity = '0'
@@ -136,5 +143,9 @@ export class ContextPanel {
             this.contentElement.innerHTML = ''
             this.contentElement.appendChild(content)
         }
+    }
+
+    public setOnToggle(callback: (isOpen: boolean) => void) {
+        this.onToggle = callback
     }
 }

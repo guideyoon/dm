@@ -1015,7 +1015,7 @@ export class PetSystem {
         const pet = this.pets.get(petId)
         if (!pet || !pet.mesh || !this.inventoryManager) return
 
-        const rareItems = ['희귀 꽃', 'shell_rare', 'mushroom_rare', 'wood_hard']
+        const rareItems = ['희귀 꽃', '희귀 조개', '희귀 버섯', '단단한 나무']
         const randomItem = rareItems[Math.floor(Math.random() * rareItems.length)]
         
         // 확률적으로 희귀 아이템 발견 (10% 확률)

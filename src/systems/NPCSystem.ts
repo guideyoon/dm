@@ -80,15 +80,15 @@ export class NPCSystem {
         name: '톰',
         personality: 'friendly',
         position: { x: 8, y: 0, z: 8 },
-        favoriteItems: ['Wood', 'Flower'],
-        dislikedItems: ['Stone']
+        favoriteItems: ['나무', '꽃'],
+        dislikedItems: ['돌']
       },
       {
         id: 'npc_emily',
         name: '에밀리',
         personality: 'energetic',
         position: { x: -8, y: 0, z: 8 },
-        favoriteItems: ['Berry', 'Flower'],
+        favoriteItems: ['열매', '꽃'],
         dislikedItems: []
       },
       {
@@ -96,7 +96,7 @@ export class NPCSystem {
         name: '밥',
         personality: 'lazy',
         position: { x: 0, y: 0, z: -8 },
-        favoriteItems: ['Mushroom'],
+        favoriteItems: ['버섯'],
         dislikedItems: []
       }
     ]

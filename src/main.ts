@@ -63,18 +63,42 @@ function initGame() {
     return false
   }
   
-  // 여러 단계에서 차단
+  // 여러 단계에서 차단 (더 강력하게)
   canvas.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false })
   canvas.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false })
   canvas.oncontextmenu = () => false
   
   // window, document에도 추가
   window.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false })
+  window.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false })
+  window.oncontextmenu = () => false
   document.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false })
+  document.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false })
+  document.oncontextmenu = () => false
   
   // body에도 추가
   document.body.addEventListener('contextmenu', disableContextMenu, { capture: true, passive: false })
+  document.body.addEventListener('contextmenu', disableContextMenu, { capture: false, passive: false })
   document.body.oncontextmenu = () => false
+  
+  // 추가: 마우스 버튼 이벤트에서도 차단 (우클릭 감지)
+  canvas.addEventListener('mousedown', (e: MouseEvent) => {
+    if (e.button === 2) { // 우클릭 버튼
+      e.preventDefault()
+      e.stopPropagation()
+      e.stopImmediatePropagation()
+      return false
+    }
+  }, { capture: true, passive: false })
+  
+  canvas.addEventListener('mouseup', (e: MouseEvent) => {
+    if (e.button === 2) { // 우클릭 버튼
+      e.preventDefault()
+      e.stopPropagation()
+      e.stopImmediatePropagation()
+      return false
+    }
+  }, { capture: true, passive: false })
 
   // Babylon.js 엔진 생성
   const engine = new Engine(canvas, true, {
@@ -84,6 +108,18 @@ function initGame() {
 
   // 씬 생성
   const scene = new Scene(engine)
+  
+  // Babylon.js 씬에서도 우클릭 차단
+  scene.onPointerObservable.add((pointerInfo) => {
+    if (pointerInfo.type === 2) { // POINTERDOWN
+      const event = pointerInfo.event as MouseEvent
+      if (event && event.button === 2) { // 우클릭
+        event.preventDefault()
+        event.stopPropagation()
+        return false
+      }
+    }
+  })
 
   // 인증 시스템 초기화
   const authSystem = new AuthSystem()

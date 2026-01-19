@@ -97,10 +97,10 @@ export class HiddenContentSystem {
         loot.push({ id: '철광석', count: 5 }, { id: '나무', count: 20 }, { id: '열매', count: 10 })
         break
       case 'epic':
-        loot.push({ id: 'gem_shard', count: 3 }, { id: '철광석', count: 10 }, { id: '나무', count: 30 })
+        loot.push({ id: '보석 조각', count: 3 }, { id: '철광석', count: 10 }, { id: '나무', count: 30 })
         break
       case 'legendary':
-        loot.push({ id: 'gem_shard', count: 10 }, { id: '철광석', count: 20 }, { id: '나무', count: 50 })
+        loot.push({ id: '보석 조각', count: 10 }, { id: '철광석', count: 20 }, { id: '나무', count: 50 })
         break
     }
     

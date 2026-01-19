@@ -23,11 +23,11 @@ export class GatheringNodeManager {
                 durabilityCost: 0,
                 xpReward: 2,
                 baseDrops: [
-                    { itemId: 'wood_branch', min: 2, max: 3, chancePct: 100 } // 밸런스 조정: 최소 드롭량 증가
+                    { itemId: '나뭇가지', min: 2, max: 3, chancePct: 100 } // 밸런스 조정: 최소 드롭량 증가
                 ],
                 bonusDrops: [
-                    { itemId: 'sap_small', min: 1, max: 1, chancePct: 5, conditions: { weather: 'sunny' } },
-                    { itemId: 'recipe_hint_paper', min: 1, max: 1, chancePct: 1, conditions: { townLevel: 2 } }
+                    { itemId: '작은 수액', min: 1, max: 1, chancePct: 5, conditions: { weather: 'sunny' } },
+                    { itemId: '레시피 힌트 종이', min: 1, max: 1, chancePct: 1, conditions: { townLevel: 2 } }
                 ]
             },
             {
@@ -41,11 +41,11 @@ export class GatheringNodeManager {
                 durabilityCost: 1,
                 xpReward: 4,
                 baseDrops: [
-                    { itemId: 'sap_small', min: 1, max: 1, chancePct: 100 }
+                    { itemId: '작은 수액', min: 1, max: 1, chancePct: 100 }
                 ],
                 bonusDrops: [
-                    { itemId: 'sap_rare', min: 1, max: 1, chancePct: 2, conditions: { season: 'spring' } },
-                    { itemId: 'insect_lure', min: 1, max: 1, chancePct: 3, conditions: { event: 'none' } }
+                    { itemId: '희귀 수액', min: 1, max: 1, chancePct: 2, conditions: { season: 'spring' } },
+                    { itemId: '곤충 유인제', min: 1, max: 1, chancePct: 3, conditions: { event: 'none' } }
                 ]
             },
             {
@@ -59,11 +59,11 @@ export class GatheringNodeManager {
                 durabilityCost: 2,
                 xpReward: 6,
                 baseDrops: [
-                    { itemId: 'wood_log', min: 1, max: 1, chancePct: 100 }
+                    { itemId: '나무 통나무', min: 1, max: 1, chancePct: 100 }
                 ],
                 bonusDrops: [
-                    { itemId: 'wood_hard', min: 1, max: 1, chancePct: 6, conditions: { toolGrade: 2 } },
-                    { itemId: 'decor_token', min: 1, max: 1, chancePct: 1, conditions: { townLevel: 1 } }
+                    { itemId: '단단한 나무', min: 1, max: 1, chancePct: 6, conditions: { toolGrade: 2 } },
+                    { itemId: '장식 토큰', min: 1, max: 1, chancePct: 1, conditions: { townLevel: 1 } }
                 ],
                 hasBonusGame: true
             },
@@ -78,12 +78,12 @@ export class GatheringNodeManager {
                 durabilityCost: 1,
                 xpReward: 4,
                 baseDrops: [
-                    { itemId: 'stone', min: 2, max: 4, chancePct: 100 } // 밸런스 조정: 최소 드롭량 증가
+                    { itemId: '돌', min: 2, max: 4, chancePct: 100 } // 밸런스 조정: 최소 드롭량 증가
                 ],
                 bonusDrops: [
-                    { itemId: 'clay', min: 1, max: 2, chancePct: 10 },
+                    { itemId: '점토', min: 1, max: 2, chancePct: 10 },
                     { itemId: '철광석', min: 1, max: 1, chancePct: 6 },
-                    { itemId: 'gem_shard', min: 1, max: 1, chancePct: 1, conditions: { bonusSuccess: true } }
+                    { itemId: '보석 조각', min: 1, max: 1, chancePct: 1, conditions: { bonusSuccess: true } }
                 ],
                 hasBonusGame: true
             },
@@ -101,9 +101,9 @@ export class GatheringNodeManager {
                     { itemId: '철광석', min: 1, max: 2, chancePct: 100 }
                 ],
                 bonusDrops: [
-                    { itemId: 'ore_silver', min: 1, max: 1, chancePct: 4, conditions: { townLevel: 3 } },
-                    { itemId: 'gem_shard', min: 1, max: 1, chancePct: 2, conditions: { bonusSuccess: true } },
-                    { itemId: 'museum_fragment', min: 1, max: 1, chancePct: 1, conditions: { firstDaily: true } }
+                    { itemId: '은 광석', min: 1, max: 1, chancePct: 4, conditions: { townLevel: 3 } },
+                    { itemId: '보석 조각', min: 1, max: 1, chancePct: 2, conditions: { bonusSuccess: true } },
+                    { itemId: '박물관 조각', min: 1, max: 1, chancePct: 1, conditions: { firstDaily: true } }
                 ],
                 hasBonusGame: true
             },
@@ -140,7 +140,7 @@ export class GatheringNodeManager {
                 ],
                 bonusDrops: [
                     { itemId: '파란 허브', min: 1, max: 1, chancePct: 3, conditions: { weather: 'rainy' } },
-                    { itemId: 'recipe_potion_basic', min: 1, max: 1, chancePct: 1, conditions: { skillLevel: 5 } }
+                    { itemId: '기본 물약 레시피', min: 1, max: 1, chancePct: 1, conditions: { skillLevel: 5 } }
                 ]
             },
             {
@@ -157,8 +157,8 @@ export class GatheringNodeManager {
                     { itemId: '일반 조개', min: 1, max: 2, chancePct: 100 }
                 ],
                 bonusDrops: [
-                    { itemId: 'seaweed', min: 1, max: 1, chancePct: 12 },
-                    { itemId: 'bottle_message', min: 1, max: 1, chancePct: 2, conditions: { firstDaily: true } }
+                    { itemId: '해초', min: 1, max: 1, chancePct: 12 },
+                    { itemId: '병 속 메시지', min: 1, max: 1, chancePct: 2, conditions: { firstDaily: true } }
                 ]
             },
             {
@@ -172,11 +172,11 @@ export class GatheringNodeManager {
                 durabilityCost: 0,
                 xpReward: 8,
                 baseDrops: [
-                    { itemId: 'mushroom_common', min: 1, max: 2, chancePct: 100 }
+                    { itemId: '일반 버섯', min: 1, max: 2, chancePct: 100 }
                 ],
                 bonusDrops: [
-                    { itemId: 'mushroom_rare', min: 1, max: 1, chancePct: 15, conditions: { season: 'autumn' } },
-                    { itemId: 'theme_item_forest', min: 1, max: 1, chancePct: 2, conditions: { museumComplete: 10 } }
+                    { itemId: '희귀 버섯', min: 1, max: 1, chancePct: 15, conditions: { season: 'autumn' } },
+                    { itemId: '숲 테마 아이템', min: 1, max: 1, chancePct: 2, conditions: { museumComplete: 10 } }
                 ]
             },
             {
@@ -193,9 +193,9 @@ export class GatheringNodeManager {
                     { itemId: '화석', min: 1, max: 1, chancePct: 100 }
                 ],
                 bonusDrops: [
-                    { itemId: 'fossil_complete', min: 1, max: 1, chancePct: 8, conditions: { skillLevel: 8 } },
-                    { itemId: 'ancient_shard', min: 1, max: 1, chancePct: 4, conditions: { weather: 'cloudy' } },
-                    { itemId: 'decor_token', min: 1, max: 1, chancePct: 2, conditions: { firstDaily: true } }
+                    { itemId: '완전한 화석', min: 1, max: 1, chancePct: 8, conditions: { skillLevel: 8 } },
+                    { itemId: '고대 조각', min: 1, max: 1, chancePct: 4, conditions: { weather: 'cloudy' } },
+                    { itemId: '장식 토큰', min: 1, max: 1, chancePct: 2, conditions: { firstDaily: true } }
                 ]
             },
             {
@@ -243,10 +243,10 @@ export class GatheringNodeManager {
                 durabilityCost: 0,
                 xpReward: 4,
                 baseDrops: [
-                    { itemId: 'fruit_apple', min: 1, max: 2, chancePct: 100 }
+                    { itemId: '사과', min: 1, max: 2, chancePct: 100 }
                 ],
                 bonusDrops: [
-                    { itemId: 'fruit_golden', min: 1, max: 1, chancePct: 3, conditions: { season: 'autumn' } }
+                    { itemId: '황금 열매', min: 1, max: 1, chancePct: 3, conditions: { season: 'autumn' } }
                 ]
             },
             {
@@ -263,7 +263,7 @@ export class GatheringNodeManager {
                     { itemId: '버섯', min: 1, max: 2, chancePct: 100 }
                 ],
                 bonusDrops: [
-                    { itemId: 'mushroom_rare', min: 1, max: 1, chancePct: 10, conditions: { season: 'autumn' } }
+                    { itemId: '희귀 버섯', min: 1, max: 1, chancePct: 10, conditions: { season: 'autumn' } }
                 ]
             },
             {
@@ -297,7 +297,7 @@ export class GatheringNodeManager {
                     { itemId: '일반 조개', min: 1, max: 2, chancePct: 100 }
                 ],
                 bonusDrops: [
-                    { itemId: 'shell_rare', min: 1, max: 1, chancePct: 5 }
+                    { itemId: '희귀 조개', min: 1, max: 1, chancePct: 5 }
                 ]
             },
             {
@@ -314,7 +314,7 @@ export class GatheringNodeManager {
                     { itemId: '나무', min: 2, max: 3, chancePct: 100 } // 밸런스 조정: 최소 드롭량 증가
                 ],
                 bonusDrops: [
-                    { itemId: 'wood_hard', min: 1, max: 1, chancePct: 8 }
+                    { itemId: '단단한 나무', min: 1, max: 1, chancePct: 8 }
                 ]
             }
         ]

@@ -46,6 +46,11 @@ export class PlayerController {
   private autoHarvestMode: boolean = false
   private autoHarvestCooldown: number = 3000 // 자동 채집 쿨타임 (3초)
   private lastAutoHarvestTime: number = 0 // 마지막 자동 채집 시간
+  private consecutiveHarvestFailures: number = 0 // 연속 실패 횟수
+  private maxConsecutiveFailures: number = 3 // 최대 연속 실패 횟수 (3회 실패 시 자동 채집 일시 중지)
+  private lastHarvestedMesh: Mesh | null = null // 마지막으로 채집한 메시
+  private lastHarvestedTime: number = 0 // 마지막 채집 시간
+  private meshHarvestCooldown: number = 5000 // 같은 오브젝트 재채집 쿨타임 (5초)
   
   // 건물 배치 모드 관련 변수
   private buildingMode: boolean = false
@@ -585,23 +590,45 @@ export class PlayerController {
     
     // 자동 채집 모드
     if (this.autoHarvestMode && !this.isHarvesting && !this.isMoving) {
+      // 연속 실패가 너무 많으면 자동 채집 일시 중지
+      if (this.consecutiveHarvestFailures >= this.maxConsecutiveFailures) {
+        return
+      }
+      
       const now = Date.now()
       if (now - this.lastAutoHarvestTime >= this.autoHarvestCooldown) {
-        this.findAndHarvestNearbyObject()
+        const found = this.findAndHarvestNearbyObject()
         this.lastAutoHarvestTime = now
+        
+        // 채집 가능한 오브젝트를 찾지 못하면 실패 횟수 증가
+        if (!found) {
+          this.consecutiveHarvestFailures++
+        } else {
+          // 성공하면 실패 횟수 리셋
+          this.consecutiveHarvestFailures = 0
+        }
       }
     }
   }
   
   // 주변 오브젝트 찾아서 자동 채집
-  private findAndHarvestNearbyObject() {
-    const searchRadius = 1000.0 // 맵 전체 검색 (맵 크기 100x100이므로 충분히 큰 값)
+  // 반환값: 채집 가능한 오브젝트를 찾았는지 여부
+  private findAndHarvestNearbyObject(): boolean {
+    const searchRadius = 15.0 // 검색 반경을 15m로 확대
     const harvestableObjects: { mesh: Mesh; distance: number; actionType: 'wood' | 'mineral' | 'plant' }[] = []
+    const now = Date.now()
     
     // 채집 가능한 오브젝트 찾기
     this.scene.meshes.forEach(m => {
       if (!(m instanceof Mesh)) return
       if (!m.isPickable) return // 채집 불가능한 오브젝트 제외
+      
+      // 방금 채집한 오브젝트는 쿨타임 동안 제외
+      if (m === this.lastHarvestedMesh) {
+        if (now - this.lastHarvestedTime < this.meshHarvestCooldown) {
+          return
+        }
+      }
       
       const meshName = m.name.toLowerCase()
       let actionType: 'wood' | 'mineral' | 'plant' | null = null
@@ -641,12 +668,22 @@ export class PlayerController {
       
       // 자동 채집 실행
       this.performHarvest(nearestObject.mesh, nearestObject.actionType)
+      // 마지막 채집한 오브젝트 기록
+      this.lastHarvestedMesh = nearestObject.mesh
+      this.lastHarvestedTime = now
+      return true
     }
+    
+    return false
   }
   
   // 자동 채집 모드 토글
   public toggleAutoHarvest() {
     this.autoHarvestMode = !this.autoHarvestMode
+    // 자동 채집 모드를 켤 때 실패 횟수 리셋
+    if (this.autoHarvestMode) {
+      this.consecutiveHarvestFailures = 0
+    }
     console.log('자동 채집 모드:', this.autoHarvestMode ? 'ON' : 'OFF')
     return this.autoHarvestMode
   }

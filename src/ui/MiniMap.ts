@@ -8,6 +8,7 @@ export class MiniMap {
     private playerPosition: Vector3 = Vector3.Zero()
     private mapSize: number = 200
     private worldSize: number = 50 // 게임 월드 크기
+    private rightOffset: number = 20
     
     constructor(scene: Scene) {
         this.scene = scene
@@ -25,7 +26,7 @@ export class MiniMap {
         Object.assign(this.element.style, {
             position: 'fixed',
             top: '60px',
-            right: '20px',
+            right: `${this.rightOffset}px`,
             width: `${this.mapSize}px`,
             height: `${this.mapSize}px`,
             backgroundColor: 'rgba(0, 0, 0, 0.7)',
@@ -118,21 +119,57 @@ export class MiniMap {
             }
         })
         
-        // 플레이어
+        // 플레이어 (더 눈에 띄게 개선)
         const playerX = (this.playerPosition.x * scale) + offsetX
         const playerZ = (this.playerPosition.z * scale) + offsetZ
-        ctx.fillStyle = 'rgba(255, 255, 0, 1)'
+        
+        // 펄스 효과를 위한 시간 기반 애니메이션
+        const pulseTime = Date.now() / 500 // 0.5초 주기
+        const pulseSize = 2 + Math.sin(pulseTime) * 1.5 // 2~3.5 크기 변화
+        
+        // 외곽 그림자 (더 잘 보이도록) - 빨간색
+        ctx.shadowColor = '#FF0000'
+        ctx.shadowBlur = 8
+        
+        // 외곽선 (검은색)
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)'
+        ctx.lineWidth = 3
+        ctx.beginPath()
+        ctx.arc(playerX, playerZ, 8 + pulseSize, 0, Math.PI * 2)
+        ctx.stroke()
+        
+        // 플레이어 표시 (밝은 빨간색) - 명확하게 빨간색으로
+        ctx.fillStyle = '#FF0000' // 완전한 빨간색
+        ctx.beginPath()
+        ctx.arc(playerX, playerZ, 8 + pulseSize, 0, Math.PI * 2)
+        ctx.fill()
+        
+        // 내부 하이라이트 (더 밝은 중심, 연한 빨간색)
+        ctx.fillStyle = '#FFCCCC' // 연한 빨간색
         ctx.beginPath()
         ctx.arc(playerX, playerZ, 5, 0, Math.PI * 2)
         ctx.fill()
         
-        // 플레이어 방향 표시
-        ctx.strokeStyle = 'rgba(255, 255, 0, 1)'
-        ctx.lineWidth = 2
+        // 그림자 효과 리셋
+        ctx.shadowColor = 'transparent'
+        ctx.shadowBlur = 0
+        
+        // 플레이어 방향 표시 (더 명확하게, 붉은 계열)
+        ctx.strokeStyle = '#FF3333' // 밝은 빨간색
+        ctx.lineWidth = 3
         ctx.beginPath()
         ctx.moveTo(playerX, playerZ)
-        ctx.lineTo(playerX, playerZ - 8)
+        ctx.lineTo(playerX, playerZ - 12)
         ctx.stroke()
+        
+        // 방향 표시 화살표 끝부분
+        ctx.fillStyle = '#FF3333' // 밝은 빨간색
+        ctx.beginPath()
+        ctx.moveTo(playerX, playerZ - 12)
+        ctx.lineTo(playerX - 3, playerZ - 8)
+        ctx.lineTo(playerX + 3, playerZ - 8)
+        ctx.closePath()
+        ctx.fill()
     }
     
     public show() {
@@ -141,5 +178,10 @@ export class MiniMap {
     
     public hide() {
         this.element.style.display = 'none'
+    }
+
+    public setRightOffset(offset: number) {
+        this.rightOffset = offset
+        this.element.style.right = `${offset}px`
     }
 }

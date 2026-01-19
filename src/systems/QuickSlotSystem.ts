@@ -81,8 +81,8 @@ export class QuickSlotSystem {
     // 아이템 사용 로직
     // 소비 가능한 아이템 타입 (음식, 포션 등)
     const consumableItems: string[] = [
-      'berry', 'fruit_apple', 'fruit_golden', 'herb_green', 'herb_blue',
-      'mushroom_common', 'mushroom_rare',
+      '열매', '사과', '황금 열매', '녹색 허브', '파란 허브',
+      '일반 버섯', '희귀 버섯',
       // 농장 작물
       '순무', '당근', '감자', '토마토', '옥수수',
       // 제작된 음식

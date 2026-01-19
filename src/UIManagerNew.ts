@@ -23,6 +23,7 @@ export class UIManagerNew {
     private objectInteractionPopup: ObjectInteractionPopup | null = null
     private harvestProgressBar: HarvestProgressBar
     private saveNotification: SaveNotification
+    private miniMap: MiniMap | null = null
     private inventoryManager: InventoryManager | null = null
     private craftingSystem: CraftingSystem | null = null
     private playerController: any = null // PlayerController 참조 (자동 채집 토글용)
@@ -73,6 +74,10 @@ export class UIManagerNew {
             } else {
                 this.contextPanel.close()
             }
+        })
+
+        this.contextPanel.setOnToggle(() => {
+            this.updateMiniMapPosition()
         })
     }
 
@@ -1398,6 +1403,15 @@ export class UIManagerNew {
     
     public setMiniMap(miniMap: MiniMap) {
         this.miniMap = miniMap
+        this.updateMiniMapPosition()
+    }
+
+    private updateMiniMapPosition() {
+        if (!this.miniMap) return
+        const baseOffset = 20
+        const panelWidth = 400
+        const rightOffset = this.contextPanel.isPanelOpen() ? baseOffset + panelWidth : baseOffset
+        this.miniMap.setRightOffset(rightOffset)
     }
     
     private showEventPanel() {

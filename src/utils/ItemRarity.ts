@@ -19,14 +19,14 @@ export class ItemRarityManager {
     
     // 희귀 아이템
     ['철광석', { rarity: 'rare', name: '희귀', color: '#4CAF50', glowColor: '#81C784' }],
-    ['wood_hard', { rarity: 'rare', name: '희귀', color: '#4CAF50', glowColor: '#81C784' }],
-    ['mushroom_rare', { rarity: 'rare', name: '희귀', color: '#4CAF50', glowColor: '#81C784' }],
-    ['shell_rare', { rarity: 'rare', name: '희귀', color: '#4CAF50', glowColor: '#81C784' }],
+    ['단단한 나무', { rarity: 'rare', name: '희귀', color: '#4CAF50', glowColor: '#81C784' }],
+    ['희귀 버섯', { rarity: 'rare', name: '희귀', color: '#4CAF50', glowColor: '#81C784' }],
+    ['희귀 조개', { rarity: 'rare', name: '희귀', color: '#4CAF50', glowColor: '#81C784' }],
     ['희귀 꽃', { rarity: 'rare', name: '희귀', color: '#4CAF50', glowColor: '#81C784' }],
     
     // 초희귀 아이템
-    ['gem_shard', { rarity: 'ultra_rare', name: '초희귀', color: '#2196F3', glowColor: '#64B5F6' }],
-    ['sap_rare', { rarity: 'ultra_rare', name: '초희귀', color: '#2196F3', glowColor: '#64B5F6' }],
+    ['보석 조각', { rarity: 'ultra_rare', name: '초희귀', color: '#2196F3', glowColor: '#64B5F6' }],
+    ['희귀 수액', { rarity: 'ultra_rare', name: '초희귀', color: '#2196F3', glowColor: '#64B5F6' }],
     
     // 전설 아이템 (금 색 - 더블 수확)
     ['나무_golden', { rarity: 'legendary', name: '전설', color: '#FFD700', glowColor: '#FFEB3B', doubleHarvest: true }],
@@ -71,7 +71,7 @@ export class ItemRarityManager {
   public static getTimeBasedRareItem(hour: number): string | null {
     if (hour === 5) {
       // 새벽 5시 특수 아이템
-      const dawnItems = ['dawn_crystal', 'dawn_flower', 'dawn_stone']
+      const dawnItems = ['새벽 수정', '새벽 꽃', '새벽 돌']
       return dawnItems[Math.floor(Math.random() * dawnItems.length)]
     }
     return null
