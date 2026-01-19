@@ -106,6 +106,42 @@ function initGame() {
     preserveDrawingBuffer: true,
     stencil: true
   })
+  
+  // WebGL 컨텍스트 생성 후 canvas에 다시 이벤트 리스너 강제 적용
+  // 크롬에서 WebGL 컨텍스트가 생성되면 이벤트 리스너가 리셋될 수 있음
+  const reapplyContextMenuBlock = () => {
+    // 기존 리스너 제거 후 다시 추가
+    const newDisableContextMenu = (e: Event) => {
+      e.preventDefault()
+      e.stopPropagation()
+      e.stopImmediatePropagation()
+      return false
+    }
+    
+    const newBlockRightClick = (e: MouseEvent) => {
+      if (e.button === 2) {
+        e.preventDefault()
+        e.stopPropagation()
+        e.stopImmediatePropagation()
+        return false
+      }
+    }
+    
+    // 여러 번 추가하여 확실히 차단
+    for (let i = 0; i < 3; i++) {
+      canvas.addEventListener('contextmenu', newDisableContextMenu, { capture: true, passive: false })
+      canvas.addEventListener('mousedown', newBlockRightClick, { capture: true, passive: false })
+      canvas.addEventListener('mouseup', newBlockRightClick, { capture: true, passive: false })
+    }
+    
+    // oncontextmenu 속성도 다시 설정
+    canvas.oncontextmenu = () => false
+  }
+  
+  // 엔진이 준비된 후 여러 번 적용 (크롬에서 WebGL 컨텍스트가 지연될 수 있음)
+  setTimeout(reapplyContextMenuBlock, 50)
+  setTimeout(reapplyContextMenuBlock, 200)
+  setTimeout(reapplyContextMenuBlock, 500)
 
   // 씬 생성
   const scene = new Scene(engine)
