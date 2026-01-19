@@ -66,4 +66,13 @@ export class InventoryManager {
     isEmpty(): boolean {
         return this.items.size === 0;
     }
+
+    hasSpace(quantity: number = 1): boolean {
+        // 인벤토리가 가득 찬 경우
+        if (this.items.size >= this.maxSlots) {
+            return false;
+        }
+        // 인벤토리에 공간이 있으면 true
+        return true;
+    }
 }

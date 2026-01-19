@@ -8,6 +8,7 @@ import { FishingSystem } from './systems/FishingSystem'
 import { BugCatchingSystem } from './systems/BugCatchingSystem'
 import { FarmingSystem } from './systems/FarmingSystem'
 import { NPCSystem } from './systems/NPCSystem'
+import { SpeechBubble } from './ui/SpeechBubble'
 
 export class PlayerController {
   private scene: Scene
@@ -20,6 +21,9 @@ export class PlayerController {
   private bugCatchingSystem: BugCatchingSystem | null = null
   private farmingSystem: FarmingSystem | null = null
   private npcSystem: NPCSystem | null = null
+  private speechBubble: SpeechBubble | null = null
+  private currentTalkingNPC: any = null // 현재 대화 중인 NPC
+  private pendingDialogueNPC: any = null // 대화 대기 중인 NPC (거리가 멀어서 대기)
   private speed: number = 5
   private walkSpeed: number = 5
   private runSpeed: number = 8 // 달리기 속도
@@ -56,6 +60,8 @@ export class PlayerController {
   private buildingMode: boolean = false
   private buildingPreviewMesh: Mesh | null = null
   private buildingSystem: any = null
+  private buildingRotation: number = 0 // 건물 회전 각도 (라디안)
+  private lastRotationKeyState: boolean = false // R 키 이전 상태 (한 번만 회전하도록)
   
   // 꾸미기 배치 모드 관련 변수
   private decorationMode: boolean = false
@@ -220,10 +226,27 @@ export class PlayerController {
         return
       }
       
+      // 대화 중이고 NPC가 아닌 곳을 클릭한 경우 대화 종료
+      if (this.currentTalkingNPC && this.speechBubble && this.speechBubble.isShowing()) {
+        if (!this.npcSystem || !this.npcSystem.isNPC(pickedMesh)) {
+          // NPC가 아닌 곳을 클릭했으므로 대화 종료
+          this.endNPCDialogue()
+          // 클릭한 곳으로 이동하거나 다른 상호작용 처리 계속 진행
+        }
+      }
+      
       // NPC 클릭 체크
       if (this.npcSystem && this.npcSystem.isNPC(pickedMesh)) {
         const npc = this.npcSystem.getNPC(pickedMesh)
         if (npc) {
+          // 대화 중인 NPC를 다시 클릭한 경우는 대화 유지
+          if (this.currentTalkingNPC && this.currentTalkingNPC.id === npc.id) {
+            return // 대화 중인 NPC를 다시 클릭한 경우 무시
+          }
+          // 다른 NPC를 클릭하거나 새로운 대화 시작
+          if (this.currentTalkingNPC) {
+            this.endNPCDialogue() // 기존 대화 종료
+          }
           this.handleNPCClick(npc)
         }
         return
@@ -380,7 +403,22 @@ export class PlayerController {
     if (!pickInfo || !pickInfo.hit || !pickInfo.pickedMesh) {
       // 아무것도 가리키지 않으면 하이라이트 제거
       if (this.lastHoveredMesh && (window as any).highlightManager) {
-        ;(window as any).highlightManager.unhighlight(this.lastHoveredMesh)
+        // NPC인 경우 rootMesh의 하이라이트 제거
+        if (this.npcSystem && this.lastHoveredMesh.metadata?.type === 'npc') {
+          const npcId = this.lastHoveredMesh.metadata?.npcId
+          if (npcId) {
+            const npc = this.npcSystem.getNPCById(npcId)
+            if (npc && npc.rootMesh) {
+              ;(window as any).highlightManager.unhighlight(npc.rootMesh)
+            } else {
+              ;(window as any).highlightManager.unhighlight(this.lastHoveredMesh)
+            }
+          } else {
+            ;(window as any).highlightManager.unhighlight(this.lastHoveredMesh)
+          }
+        } else {
+          ;(window as any).highlightManager.unhighlight(this.lastHoveredMesh)
+        }
         this.lastHoveredMesh = null
       }
       return
@@ -400,18 +438,27 @@ export class PlayerController {
 
     // 상호작용 가능한 오브젝트인지 확인
     if (this.isInteractableMesh(pickedMesh)) {
-      this.lastHoveredMesh = pickedMesh
-      
       // 하이라이트 표시
       if ((window as any).highlightManager) {
         if (this.isGatherableMesh(pickedMesh)) {
           ;(window as any).highlightManager.highlightInteractable(pickedMesh)
+          this.lastHoveredMesh = pickedMesh
         } else if (pickedMesh.metadata?.type === 'building') {
           ;(window as any).highlightManager.highlightBuilding(pickedMesh)
+          this.lastHoveredMesh = pickedMesh
         } else if (this.npcSystem && this.npcSystem.isNPC(pickedMesh)) {
-          ;(window as any).highlightManager.highlightNPC(pickedMesh)
+          // NPC의 rootMesh에 하이라이트 적용
+          const npc = this.npcSystem.getNPC(pickedMesh)
+          if (npc && npc.rootMesh) {
+            ;(window as any).highlightManager.highlightNPC(npc.rootMesh)
+            this.lastHoveredMesh = npc.rootMesh // rootMesh를 저장하여 나중에 제거할 수 있도록
+          } else {
+            ;(window as any).highlightManager.highlightNPC(pickedMesh)
+            this.lastHoveredMesh = pickedMesh
+          }
         } else {
           ;(window as any).highlightManager.highlight(pickedMesh)
+          this.lastHoveredMesh = pickedMesh
         }
       }
     } else {
@@ -447,6 +494,11 @@ export class PlayerController {
   }
 
   private isGatherableMesh(mesh: Mesh): boolean {
+    // 낚시 포인트 근처에서는 채집 불가
+    if (this.isNearFishingSpot(mesh)) {
+      return false
+    }
+    
     const name = mesh.name.toLowerCase()
     return name.includes('trunk') || 
            name.includes('leaves') || 
@@ -460,14 +512,63 @@ export class PlayerController {
            name.includes('petal') ||
            name.includes('flowercenter')
   }
+  
+  private isNearFishingSpot(mesh: Mesh): boolean {
+    if (!this.fishingSystem) return false
+    
+    const playerPosition = this.mesh.position.clone()
+    const meshPosition = mesh.position.clone()
+    
+    // 낚시 포인트와의 거리 확인 (3m 이내)
+    const fishingSpotDistance = 3.0
+    
+    // 모든 낚시 포인트 확인
+    const allMeshes = this.scene.meshes
+    for (const sceneMesh of allMeshes) {
+      if (this.fishingSystem.isFishingSpot(sceneMesh)) {
+        const fishingSpotPos = sceneMesh.position.clone()
+        const distance = Vector3.Distance(playerPosition, fishingSpotPos)
+        
+        // 플레이어가 낚시 포인트 근처에 있거나, 채집하려는 오브젝트가 낚시 포인트 근처에 있으면 채집 불가
+        if (distance < fishingSpotDistance) {
+          return true
+        }
+        
+        const meshToFishingSpotDistance = Vector3.Distance(meshPosition, fishingSpotPos)
+        if (meshToFishingSpotDistance < fishingSpotDistance) {
+          return true
+        }
+      }
+    }
+    
+    return false
+  }
 
   private update() {
+    // 대화 대기 중인 NPC가 있고, 플레이어가 2m 범위 안에 들어오면 말풍선 표시
+    if (this.pendingDialogueNPC && this.npcSystem) {
+      const playerPosition = this.mesh.position.clone()
+      const npcPosition = new Vector3(this.pendingDialogueNPC.position.x, 0, this.pendingDialogueNPC.position.z)
+      const distance = Vector3.Distance(playerPosition, npcPosition)
+      
+      if (distance <= 2.0) {
+        // 2m 범위 안에 들어왔으므로 말풍선 표시
+        this.startDialogue(this.pendingDialogueNPC)
+      } else {
+        // 여전히 멀리 있으면 NPC가 플레이어를 계속 바라보도록 업데이트
+        this.npcSystem.makeNPCLookAtPlayer(this.pendingDialogueNPC.id, playerPosition)
+      }
+    }
     const deltaTime = this.scene.getEngine().getDeltaTime() / 1000
 
     // ESC 키로 배치 모드/편집 모드 취소
     if (this.inputManager.isKeyDown('Escape')) {
       if (this.buildingMode) {
         this.buildingMode = false
+        this.buildingRotation = 0
+        if (this.uiManager && typeof (this.uiManager as any).clearPendingBuildingType === 'function') {
+          ;(this.uiManager as any).clearPendingBuildingType()
+        }
         this.uiManager.showMessage('건물 배치 모드를 취소했습니다.', false)
       }
       if (this.decorationMode) {
@@ -484,6 +585,21 @@ export class PlayerController {
           ;(this.uiManager as any).hideFurnitureEditPanel()
         }
       }
+    }
+    
+    // R 키로 건물 회전 (건설 모드일 때만, 한 번만 회전)
+    if (this.buildingMode) {
+      const isRKeyDown = this.inputManager.isKeyDown('r')
+      if (isRKeyDown && !this.lastRotationKeyState) {
+        // 키가 눌렸을 때 한 번만 회전
+        if (this.uiManager && typeof (this.uiManager as any).rotateBuildingPreview === 'function') {
+          ;(this.uiManager as any).rotateBuildingPreview()
+          this.buildingRotation = ((this.uiManager as any).getPendingBuildingRotation() || 0) * Math.PI / 180
+        }
+      }
+      this.lastRotationKeyState = isRKeyDown
+    } else {
+      this.lastRotationKeyState = false
     }
     
     // 가구 사용 중이면 E키로 일어나기 체크
@@ -1069,7 +1185,15 @@ export class PlayerController {
     
     // 이동 완료 후 채집 시작
     this.isHarvesting = true
-    this.uiManager.showHarvestProgress()
+    
+    // 재료 이름 가져오기
+    let itemName = '재료'
+    if (this.gatheringSystem) {
+      const objectName = objectMesh.name
+      itemName = this.gatheringSystem.getNodeName(objectName) || '재료'
+    }
+    
+    this.uiManager.showHarvestProgress(itemName)
 
     const harvestDuration = 2000 // 2초
     const startTime = Date.now()
@@ -1777,6 +1901,11 @@ export class PlayerController {
       return
     }
     
+    // 회전 각도 가져오기
+    const rotationDegrees = (this.uiManager as any)?.getPendingBuildingRotation() || 0
+    const rotationRadians = rotationDegrees * Math.PI / 180
+    this.buildingRotation = rotationRadians
+    
     // 마우스 위치에서 레이캐스트로 땅 위치 찾기
     const pickResult = this.scene.pick(this.scene.pointerX, this.scene.pointerY, (mesh) => mesh.name === 'ground')
     
@@ -1792,12 +1921,13 @@ export class PlayerController {
       
       // 미리보기 메시가 없으면 생성
       if (!this.buildingPreviewMesh) {
-        this.buildingPreviewMesh = this.buildingSystem.createPreviewMesh(pendingType, position, 0)
+        this.buildingPreviewMesh = this.buildingSystem.createPreviewMesh(pendingType, position, rotationRadians)
       }
       
-      // 위치 업데이트
+      // 위치 및 회전 업데이트
       const buildingData = this.buildingSystem.getBuildingData(pendingType)
       this.buildingPreviewMesh.position = new Vector3(position.x, buildingData.size.height / 2, position.z)
+      this.buildingPreviewMesh.rotation.y = rotationRadians
       
       // 건설 가능 여부에 따라 색상 변경
       const previewMat = this.buildingPreviewMesh.material as StandardMaterial
@@ -1820,8 +1950,134 @@ export class PlayerController {
   private handleNPCClick(npc: any) {
     if (!this.npcSystem) return
     
-    // NPC 대화/상호작용 UI 표시
-    this.uiManager.showNPCPanel(npc, this.npcSystem)
+    // NPC 상호작용 팝업 표시
+    this.showNPCActionBar(npc)
+  }
+  
+  private showNPCActionBar(npc: any) {
+    if (!this.npcSystem) return
+    
+    // NPC 이름과 아이콘
+    const npcName = npc.name
+    const icon = '👤'
+    
+    // 상호작용 액션 목록
+    const actions: { label: string; onClick: () => void; primary?: boolean }[] = [
+      {
+        label: '대화하기',
+        onClick: () => {
+          this.uiManager.hideObjectInteractionPopup()
+          this.showNPCDialogue(npc)
+        },
+        primary: true
+      }
+    ]
+    
+    // NPC의 bounding box를 사용하여 하단 중심 위치 계산
+    let popupPosition: Vector3
+    if (npc.rootMesh) {
+      const boundingInfo = npc.rootMesh.getBoundingInfo()
+      boundingInfo.update(npc.rootMesh.getWorldMatrix())
+      const boundingBox = boundingInfo.boundingBox
+      
+      popupPosition = new Vector3(
+        (boundingBox.minimumWorld.x + boundingBox.maximumWorld.x) / 2,
+        boundingBox.minimumWorld.y,
+        (boundingBox.minimumWorld.z + boundingBox.maximumWorld.z) / 2
+      )
+    } else {
+      // rootMesh가 없으면 NPC 위치 사용
+      popupPosition = new Vector3(npc.position.x, 0, npc.position.z)
+    }
+    
+    this.uiManager.showObjectInteractionPopup(npcName, icon, actions, popupPosition, npc.rootMesh || npc.mesh)
+  }
+  
+  private showNPCDialogue(npc: any) {
+    if (!this.npcSystem) return
+    
+    // 플레이어와 NPC 사이의 거리 계산
+    const playerPosition = this.mesh.position.clone()
+    const npcPosition = new Vector3(npc.position.x, 0, npc.position.z)
+    const distance = Vector3.Distance(playerPosition, npcPosition)
+    
+    // 2m 범위 안에 있으면 즉시 말풍선 표시
+    if (distance <= 2.0) {
+      this.startDialogue(npc)
+    } else {
+      // 멀리 있으면 플레이어를 NPC 앞으로 이동시키기
+      this.pendingDialogueNPC = npc
+      
+      // NPC를 향한 방향 벡터 계산
+      const directionToNPC = npcPosition.subtract(playerPosition)
+      directionToNPC.y = 0 // Y축은 무시
+      const normalizedDirection = directionToNPC.normalize()
+      
+      // NPC 앞 1.5m 위치를 목표로 설정 (2m 범위 안에 들어가도록)
+      const targetDistance = 1.5
+      const targetPosition = npcPosition.subtract(normalizedDirection.scale(targetDistance))
+      targetPosition.y = playerPosition.y // Y는 플레이어 높이 유지
+      
+      // 플레이어를 목표 위치로 이동
+      this.targetPosition = targetPosition
+      this.isMoving = true
+      
+      // NPC가 플레이어를 바라보고 멈추게 하기
+      this.npcSystem.makeNPCLookAtPlayer(npc.id, playerPosition)
+    }
+  }
+  
+  private startDialogue(npc: any) {
+    if (!this.npcSystem) return
+    
+    // 현재 대화 중인 NPC 저장
+    this.currentTalkingNPC = npc
+    this.pendingDialogueNPC = null // 대기 상태 해제
+    
+    // NPC가 플레이어를 바라보고 멈추게 하기
+    const playerPosition = this.mesh.position.clone()
+    this.npcSystem.makeNPCLookAtPlayer(npc.id, playerPosition)
+    
+    // SpeechBubble 초기화 (없으면 생성)
+    if (!this.speechBubble) {
+      this.speechBubble = new SpeechBubble(this.scene)
+    }
+    
+    // NPC 대화 가져오기
+    const dialogue = this.npcSystem.getDialogue ? this.npcSystem.getDialogue(npc.id) : '안녕하세요!'
+    
+    // NPC의 rootMesh 또는 head 메시 찾기
+    let npcHeadMesh: Mesh | null = null
+    if (npc.rootMesh) {
+      // rootMesh의 자식 중 head 찾기
+      const childMeshes = npc.rootMesh.getChildMeshes(true)
+      npcHeadMesh = childMeshes.find((m: Mesh) => m.name.includes('head')) as Mesh || npc.rootMesh
+    } else if (npc.mesh) {
+      npcHeadMesh = npc.mesh
+    }
+    
+    if (npcHeadMesh) {
+      // 말풍선 표시 (5초간, 대화 종료 시 NPC 이동 재개)
+      this.speechBubble.show(npcHeadMesh, dialogue, 5000, () => {
+        // 말풍선이 사라질 때 NPC 대화 종료
+        this.endNPCDialogue()
+      })
+    }
+  }
+  
+  private endNPCDialogue() {
+    if (this.currentTalkingNPC && this.npcSystem) {
+      this.npcSystem.endNPCDialogue(this.currentTalkingNPC.id)
+      this.currentTalkingNPC = null
+    }
+    if (this.pendingDialogueNPC && this.npcSystem) {
+      // 대기 중인 대화도 취소
+      this.npcSystem.endNPCDialogue(this.pendingDialogueNPC.id)
+      this.pendingDialogueNPC = null
+    }
+    if (this.speechBubble) {
+      this.speechBubble.hide()
+    }
   }
   
   private findBuildingIdByMesh(mesh: Mesh): string | null {

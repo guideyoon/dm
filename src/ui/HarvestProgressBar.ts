@@ -71,10 +71,19 @@ export class HarvestProgressBar {
         this.element.appendChild(progressContainer)
     }
 
-    public show() {
+    public show(itemName?: string) {
         this.isVisible = true
         this.element.style.display = 'block'
         this.updateProgress(0)
+        if (itemName) {
+            this.setItemName(itemName)
+        }
+    }
+    
+    public setItemName(itemName: string) {
+        if (this.labelText) {
+            this.labelText.textContent = `${itemName} 채집중`
+        }
     }
 
     public hide() {

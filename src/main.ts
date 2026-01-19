@@ -13,7 +13,6 @@ import { ShopSystem } from './systems/ShopSystem'
 import { CodexSystem } from './systems/CodexSystem'
 import { MissionSystem } from './systems/MissionSystem'
 import { MuseumSystem } from './systems/MuseumSystem'
-import { QuickSlotSystem } from './systems/QuickSlotSystem'
 import { BuildingSystem } from './systems/BuildingSystem'
 import { BuildingInteriorSystem } from './systems/BuildingInteriorSystem'
 import { DecorationSystem } from './systems/DecorationSystem'
@@ -155,7 +154,6 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
   const codexSystem = new CodexSystem(inventoryManager);
   const missionSystem = new MissionSystem(inventoryManager);
   const museumSystem = new MuseumSystem(inventoryManager);
-  const quickSlotSystem = new QuickSlotSystem(inventoryManager);
   const buildingSystem = new BuildingSystem(scene, inventoryManager);
   const decorationSystem = new DecorationSystem(scene, inventoryManager);
   const interiorSystem = new BuildingInteriorSystem(scene);
@@ -574,6 +572,7 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
   const npcSystem = (playerController as any).npcSystem
   if (npcSystem) {
     eventSystem.setNPCSystem(npcSystem)
+    uiManager.setNPCSystem(npcSystem) // UI Manager에도 연결
   }
   if ((playerController as any).farmingSystem) {
     statisticsManager.setFarmingSystem((playerController as any).farmingSystem)
@@ -751,6 +750,105 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
       }, 2000) // 2초 후 시작
     }
     
+    // 건물 복원
+    if (saveData.progress && saveData.progress.buildingPlaced && Array.isArray(saveData.progress.buildingPlaced)) {
+      const playerCoins = currencySystem.getCoins()
+      saveData.progress.buildingPlaced.forEach((buildingData: any) => {
+        const rotation = buildingData.rotation || 0
+        const result = buildingSystem.buildBuilding(
+          buildingData.type,
+          buildingData.position,
+          rotation,
+          playerCoins
+        )
+        if (result.success) {
+          // 코인은 이미 저장된 상태이므로 차감하지 않음
+          console.log(`건물 복원: ${buildingData.type} (${buildingData.id})`)
+        } else {
+          console.warn(`건물 복원 실패: ${buildingData.type} (${buildingData.id}) - ${result.message}`)
+        }
+      })
+    }
+    
+    // 가구 복원
+    if (saveData.progress && saveData.progress.furniturePlaced && Array.isArray(saveData.progress.furniturePlaced)) {
+      saveData.progress.furniturePlaced.forEach((furnitureData: any) => {
+        const result = decorationSystem.placeFurniture(
+          furnitureData.type,
+          furnitureData.position,
+          furnitureData.rotation || 0
+        )
+        if (result.success) {
+          console.log(`가구 복원: ${furnitureData.type} (${furnitureData.id})`)
+        } else {
+          console.warn(`가구 복원 실패: ${furnitureData.type} (${furnitureData.id}) - ${result.message}`)
+        }
+      })
+    }
+    
+    // 농장 밭 복원
+    if (saveData.progress && saveData.progress.farmPlots && Array.isArray(saveData.progress.farmPlots) && (playerController as any).farmingSystem) {
+      const farmingSystem = (playerController as any).farmingSystem
+      if (typeof farmingSystem.getFarmPlots === 'function') {
+        const existingPlots = farmingSystem.getFarmPlots()
+        saveData.progress.farmPlots.forEach((plotData: any) => {
+          // 기존 밭 찾기 (ID 또는 위치로)
+          const plot = existingPlots.find((p: any) => p.id === plotData.id) || 
+                       existingPlots.find((p: any) => 
+                         Math.abs(p.position.x - plotData.position.x) < 0.1 &&
+                         Math.abs(p.position.z - plotData.position.z) < 0.1
+                       )
+          
+          if (plot && plotData.crop) {
+            // 작물 복원
+            const cropData = plotData.crop
+            if (typeof farmingSystem.restoreCrop === 'function') {
+              const success = farmingSystem.restoreCrop(plot.id, {
+                id: cropData.id || `crop_${plot.id}_${Date.now()}`,
+                type: cropData.type,
+                stage: cropData.stage || 'seed',
+                plantedDate: cropData.plantedDate || (timeSystem.getTime().day * 24 + timeSystem.getTime().hour),
+                watered: cropData.watered || false,
+                growthProgress: cropData.growthProgress || 0,
+                position: cropData.position || plot.position
+              })
+              if (success) {
+                console.log(`농장 밭 복원: ${plotData.id} (작물: ${cropData.type}, 단계: ${cropData.stage})`)
+              } else {
+                console.warn(`농장 밭 복원 실패: ${plotData.id}`)
+              }
+            }
+          } else if (plot) {
+            console.log(`농장 밭 복원: ${plotData.id} (빈 밭)`)
+          }
+        })
+      }
+    }
+    
+    // 캐릭터 커스터마이징 복원
+    if (saveData.progress && saveData.progress.customization && saveData.progress.customization.equippedOutfit) {
+      const outfit = saveData.progress.customization.equippedOutfit
+      if (outfit.top && typeof customizationSystem.equipClothing === 'function') {
+        customizationSystem.equipClothing(outfit.top, 'top')
+      }
+      if (outfit.bottom && typeof customizationSystem.equipClothing === 'function') {
+        customizationSystem.equipClothing(outfit.bottom, 'bottom')
+      }
+      if (outfit.dress && typeof customizationSystem.equipClothing === 'function') {
+        customizationSystem.equipClothing(outfit.dress, 'dress')
+      }
+      if (outfit.shoes && typeof customizationSystem.equipClothing === 'function') {
+        customizationSystem.equipClothing(outfit.shoes, 'shoes')
+      }
+      if (outfit.hat && typeof customizationSystem.equipClothing === 'function') {
+        customizationSystem.equipClothing(outfit.hat, 'hat')
+      }
+      if (outfit.hair && typeof customizationSystem.equipClothing === 'function') {
+        customizationSystem.equipClothing(outfit.hair, 'hair')
+      }
+      console.log('캐릭터 커스터마이징 복원 완료')
+    }
+    
     console.log('게임 로드 완료');
   }
   
@@ -804,7 +902,7 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
     const position = colliderMesh.position;
     const coins = currencySystem.getCoins();
     const tokens = currencySystem.getTokens();
-    const success = saveSystem.save(inventoryManager, timeSystem, { x: position.x, y: position.y, z: position.z }, coins, tokens, codexSystem, museumSystem, missionSystem, buildingSystem, petSystem, tutorialSystem);
+    const success = saveSystem.save(inventoryManager, timeSystem, { x: position.x, y: position.y, z: position.z }, coins, tokens, codexSystem, museumSystem, missionSystem, buildingSystem, petSystem, tutorialSystem, decorationSystem, (playerController as any).farmingSystem, customizationSystem);
     if (success) {
       uiManager.showSaveNotification('자동 저장 완료');
     }
@@ -815,7 +913,7 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
     const position = colliderMesh.position;
     const coins = currencySystem.getCoins();
     const tokens = currencySystem.getTokens();
-    const success = saveSystem.save(inventoryManager, timeSystem, { x: position.x, y: position.y, z: position.z }, coins, tokens, codexSystem, museumSystem, missionSystem, buildingSystem, petSystem, tutorialSystem);
+    const success = saveSystem.save(inventoryManager, timeSystem, { x: position.x, y: position.y, z: position.z }, coins, tokens, codexSystem, museumSystem, missionSystem, buildingSystem, petSystem, tutorialSystem, decorationSystem, (playerController as any).farmingSystem, customizationSystem);
     // beforeunload에서는 알림 표시하지 않음 (페이지가 닫히므로)
   });
 
@@ -1061,7 +1159,7 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
   const fruitTreeLeafMat = new StandardMaterial("fruitTreeLeafMat", scene);
   fruitTreeLeafMat.diffuseColor = new Color3(0.2, 0.6, 0.2);
   const fruitMat = new StandardMaterial("fruitMat", scene);
-  fruitMat.diffuseColor = new Color3(1, 0.5, 0); // 주황색 열매
+  fruitMat.diffuseColor = new Color3(0.9, 0.1, 0.1); // 빨간색 열매
 
   const createFruitTree = (x: number, z: number) => {
     // 나무 줄기
@@ -1077,16 +1175,35 @@ async function initializeGameSystems(scene: Scene, engine: Engine, canvas: HTMLC
     leaves.checkCollisions = true;
     leaves.isPickable = true;
 
-    // 열매들 (작은 구체들)
+    // 열매들 (작은 구체들) - 나뭇잎 구체 안에 배치
+    const leavesRadius = 0.75 // 나뭇잎 구체 반지름 (diameter 1.5 / 2)
+    const fruitRadius = 0.06 // 열매 반지름 (diameter 0.12 / 2)
+    const safeRadius = leavesRadius - fruitRadius - 0.1 // 안전한 배치 반지름 (경계에서 약간 안쪽)
+    
     for (let i = 0; i < 4; i++) {
       const fruit = MeshBuilder.CreateSphere("fruit", { diameter: 0.12 }, scene);
+      
+      // 구체 내부에 균등하게 분포된 랜덤 위치 생성
+      let fruitX, fruitY, fruitZ, distance
+      do {
+        // -1 ~ 1 범위의 랜덤 값
+        fruitX = (Math.random() - 0.5) * 2
+        fruitY = (Math.random() - 0.5) * 2
+        fruitZ = (Math.random() - 0.5) * 2
+        distance = Math.sqrt(fruitX * fruitX + fruitY * fruitY + fruitZ * fruitZ)
+      } while (distance > 1 || distance < 0.3) // 구체 내부이면서 중심에서 너무 가깝지 않게
+      
+      // 정규화하고 안전한 반지름 내로 스케일
+      const normalizedDistance = distance > 0 ? distance : 1
+      const scale = safeRadius / normalizedDistance
+      
       fruit.position = new Vector3(
-        x + (Math.random() - 0.5) * 0.6,
-        1.6 + Math.random() * 0.4,
-        z + (Math.random() - 0.5) * 0.6
+        fruitX * scale,
+        fruitY * scale + 0.1, // 약간 위쪽으로 (나뭇잎 구체의 상단 부분)
+        fruitZ * scale
       );
       fruit.material = fruitMat;
-      fruit.parent = leaves;
+      fruit.parent = leaves; // 나뭇잎의 자식으로 설정 (나뭇잎 중심 기준 상대 위치)
     }
   };
 

@@ -7,7 +7,6 @@ import { ContextPanel } from './ui/ContextPanel'
 import { BottomActionBar, ActionButton } from './ui/BottomActionBar'
 import { ObjectInteractionPopup } from './ui/ObjectInteractionPopup'
 import { HarvestProgressBar } from './ui/HarvestProgressBar'
-import { QuickSlotBar } from './ui/QuickSlotBar'
 import { MiniMap } from './ui/MiniMap'
 import { SaveNotification } from './ui/SaveNotification'
 import { Vector3 } from '@babylonjs/core'
@@ -19,7 +18,6 @@ export class UIManagerNew {
     private leftMenuBar: LeftMenuBar
     private contextPanel: ContextPanel
     private bottomActionBar: BottomActionBar
-    private quickSlotBar: QuickSlotBar
     private objectInteractionPopup: ObjectInteractionPopup | null = null
     private harvestProgressBar: HarvestProgressBar
     private saveNotification: SaveNotification
@@ -40,7 +38,9 @@ export class UIManagerNew {
     private interiorSystem: any = null // BuildingInteriorSystem 참조
     private tutorialSystem: any = null // TutorialSystem 참조
     private tutorialPanel: any = null // TutorialPanel 참조
+    private npcSystem: any = null // NPCSystem 참조
     private pendingBuildingType: string | null = null // 건물 배치 모드: 배치할 건물 타입
+    private pendingBuildingRotation: number = 0 // 건물 회전 각도 (0, 90, 180, 270)
     private pendingDecorationType: string | null = null // 꾸미기 배치 모드: 배치할 가구 타입
     
     // 필터 상태
@@ -66,7 +66,6 @@ export class UIManagerNew {
         this.leftMenuBar = new LeftMenuBar()
         this.contextPanel = new ContextPanel()
         this.bottomActionBar = new BottomActionBar()
-        this.quickSlotBar = new QuickSlotBar()
         this.harvestProgressBar = new HarvestProgressBar()
         this.saveNotification = new SaveNotification()
 
@@ -224,7 +223,7 @@ export class UIManagerNew {
                 }
                 break
             case 'map':
-                this.contextPanel.open(menu, '지도', '지도 화면입니다.')
+                this.showMapPanel()
                 break
             case 'codex':
                 this.showCodexPanel()
@@ -250,6 +249,18 @@ export class UIManagerNew {
                 break
             case 'photo':
                 this.showPhotoMode()
+                break
+            case 'build':
+                this.showBuildPanel()
+                break
+            case 'decorate':
+                this.showDecorationPanel()
+                break
+            case 'events':
+                this.showEventPanel()
+                break
+            case 'villagers':
+                this.showVillagersPanel()
                 break
             default:
                 this.contextPanel.open(menu, menu, `${menu} 화면입니다.`)
@@ -610,7 +621,7 @@ export class UIManagerNew {
             await new Promise(resolve => setTimeout(resolve, 1500))
             
             // 제작 실행
-            const result = self.craftingSystem.craft(recipeId)
+            const result = self.craftingSystem.craft(recipeId) as { success: boolean; message: string; resultItem?: string; resultCount?: number }
             
             // 제작 완료 처리
             self.craftingItems.set(recipeId, false)
@@ -621,45 +632,70 @@ export class UIManagerNew {
                     self.soundSystem.playSound('item_get')
                 }
                 
-                // 완료 상태 표시
-                self.craftingComplete.set(recipeId, true)
-                self.showCraftPanel() // 패널 새로고침하여 완료 상태 표시
+                // 가운데 팝업으로 제작 결과 표시
+                const resultItemName = result.resultItem || recipe.resultItem || '아이템'
+                const resultCount = result.resultCount || recipe.resultCount || 1
                 
-                // 완료 메시지를 제작 창 안에 표시
-                const messageHtml = `
-                    <div style="padding: 15px; margin: 10px 0; background: rgba(76, 175, 80, 0.3); border: 2px solid rgba(76, 175, 80, 0.6); border-radius: 10px; text-align: center;">
-                        <div style="font-size: 18px; font-weight: bold; color: #4CAF50; margin-bottom: 5px;">✅ 제작 완료!</div>
-                        <div style="font-size: 14px; color: #fff;">${result.message}</div>
-                    </div>
+                // 가운데 팝업 생성
+                const popup = document.createElement('div')
+                popup.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: rgba(30, 30, 30, 0.95);
+                    border: 3px solid #4CAF50;
+                    border-radius: 20px;
+                    padding: 30px 40px;
+                    z-index: 10000;
+                    text-align: center;
+                    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+                    min-width: 300px;
                 `
                 
-                // 제작 패널 내용에 메시지 추가
-                const panelContent = self.contextPanel.getContentElement()
-                if (panelContent) {
-                    // 기존 메시지가 있으면 제거
-                    const existingMsg = document.getElementById('craft-complete-message')
-                    if (existingMsg) {
-                        existingMsg.remove()
-                    }
-                    
-                    const messageDiv = document.createElement('div')
-                    messageDiv.innerHTML = messageHtml
-                    messageDiv.id = 'craft-complete-message'
-                    panelContent.insertBefore(messageDiv, panelContent.firstChild)
-                    
-                    // 3초 후 메시지 제거
-                    setTimeout(() => {
-                        const msg = document.getElementById('craft-complete-message')
-                        if (msg) {
-                            msg.remove()
+                popup.innerHTML = `
+                    <div style="font-size: 48px; margin-bottom: 15px;">✅</div>
+                    <div style="font-size: 24px; font-weight: bold; color: #4CAF50; margin-bottom: 10px;">제작 완료!</div>
+                    <div style="font-size: 18px; color: #fff; margin-bottom: 15px;">${recipe.name}</div>
+                    <div style="font-size: 16px; color: #aaa; margin-bottom: 20px;">${resultItemName} x${resultCount}</div>
+                    <button id="craft-popup-close" style="padding: 10px 30px; background: #4CAF50; border: none; border-radius: 8px; color: #fff; font-size: 16px; cursor: pointer; font-weight: bold;">확인</button>
+                `
+                
+                document.body.appendChild(popup)
+                
+                // 확인 버튼 클릭 시 팝업 닫기 및 인벤토리에 추가
+                const closeBtn = document.getElementById('craft-popup-close')
+                if (closeBtn) {
+                    closeBtn.onclick = () => {
+                        // 인벤토리에 추가
+                        if (result.resultItem && result.resultCount) {
+                            const canAdd = self.inventoryManager?.add(result.resultItem, result.resultCount)
+                            if (!canAdd) {
+                                self.showMessage('인벤토리가 가득 찼습니다.', false)
+                            }
                         }
-                        // 완료 상태도 초기화
-                        self.craftingComplete.set(recipeId, false)
-                        self.showCraftPanel()
-                    }, 3000)
+                        popup.remove()
+                        self.showCraftPanel() // 패널 새로고침
+                    }
                 }
                 
-                self.showBagPanel() // 가방 패널 새로고침
+                // ESC 키로도 닫기 가능
+                const escHandler = (e: KeyboardEvent) => {
+                    if (e.key === 'Escape') {
+                        // 인벤토리에 추가
+                        if (result.resultItem && result.resultCount) {
+                            const canAdd = self.inventoryManager?.add(result.resultItem, result.resultCount)
+                            if (!canAdd) {
+                                self.showMessage('인벤토리가 가득 찼습니다.', false)
+                            }
+                        }
+                        popup.remove()
+                        self.showCraftPanel() // 패널 새로고침
+                        document.removeEventListener('keydown', escHandler)
+                    }
+                }
+                document.addEventListener('keydown', escHandler)
+                
             } else {
                 self.showMessage(result.message, false)
                 self.showCraftPanel() // 패널 새로고침
@@ -676,11 +712,74 @@ export class UIManagerNew {
 
     private getItemDisplayName(itemName: string): string {
         const displayNames: { [key: string]: string } = {
+            // 기본 재료
             'Wood': '나무',
             'Stone': '돌',
             'Berry': '열매',
             'Mushroom': '버섯',
-            'Flower': '꽃'
+            'Flower': '꽃',
+            
+            // 도구
+            'tool_axe': '도끼',
+            'tool_pickaxe': '곡괭이',
+            'tool_shovel': '삽',
+            'tool_fishing_rod': '낚싯대',
+            'tool_net': '곤충망',
+            'tool_watering_can': '물뿌리개',
+            'tool_axe_iron': '강화 도끼',
+            'tool_pickaxe_iron': '강화 곡괭이',
+            'tool_fishing_rod_pro': '고급 낚싯대',
+            
+            // 재료
+            'material_wood': '나무',
+            'material_stone': '돌',
+            'material_iron': '철',
+            'material_plank': '나무 판자',
+            'material_brick': '돌 벽돌',
+            
+            // 소비품
+            'consumable_berry_juice': '베리 주스',
+            'consumable_herb_tea': '허브 차',
+            'consumable_mushroom_soup': '버섯 수프',
+            'consumable_turnip_salad': '순무 샐러드',
+            'consumable_carrot_cake': '당근 케이크',
+            'consumable_fried_potato': '감자 튀김',
+            'consumable_tomato_juice': '토마토 주스',
+            'consumable_corn_soup': '옥수수 수프',
+            'consumable_stir_fry': '야채 볶음',
+            'consumable_tomato_pasta': '토마토 파스타',
+            'item_bait': '미끼',
+            'item_fertilizer': '비료',
+            'pet_food_basic': '기본 펫 사료',
+            'pet_food_premium': '프리미엄 펫 사료',
+            'pet_food_fish': '생선 사료',
+            'pet_food_bone': '뼈 사료',
+            
+            // 가구
+            'furniture_chair': '의자',
+            'furniture_table': '테이블',
+            'furniture_lamp': '램프',
+            'furniture_plant': '화분',
+            'furniture_rug': '카펫',
+            
+            // 장식
+            'decoration_flower_crown': '꽃 화관',
+            'decoration_flower_bouquet': '꽃다발',
+            'decoration_shell_ornament': '조개 장식',
+            'decoration_fossil_display': '화석 표시품',
+            
+            // 펫
+            'pet_egg_cat': '고양이 펫알',
+            'pet_egg_dog': '강아지 펫알',
+            'pet_egg_rabbit': '토끼 펫알',
+            'pet_egg_bird': '새 펫알',
+            'pet_egg_fox': '여우 펫알',
+            'pet_egg_bear': '곰 펫알',
+            
+            // 씨앗
+            'seed_turnip': '순무 씨앗',
+            'seed_carrot': '당근 씨앗',
+            'seed_potato': '감자 씨앗'
         }
         return displayNames[itemName] || itemName
     }
@@ -711,8 +810,8 @@ export class UIManagerNew {
         }
     }
 
-    public showHarvestProgress() {
-        this.harvestProgressBar.show()
+    public showHarvestProgress(itemName?: string) {
+        this.harvestProgressBar.show(itemName)
     }
 
     public hideHarvestProgress() {
@@ -1351,8 +1450,108 @@ export class UIManagerNew {
         this.contextPanel.open('npc', npc.name, content)
     }
     
+    private showVillagersPanel() {
+        if (!this.npcSystem) {
+            // playerController에서 npcSystem 가져오기
+            const playerController = (window as any).playerController
+            if (playerController && (playerController as any).npcSystem) {
+                this.npcSystem = (playerController as any).npcSystem
+            } else {
+                this.contextPanel.open('villagers', '주민', '주민 시스템이 없습니다.')
+                return
+            }
+        }
+        
+        const npcs = this.npcSystem.getAllNPCs()
+        
+        let content = `
+            <div style="padding: 20px;">
+                <h2 style="margin: 0 0 20px 0;">주민 목록</h2>
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+        `
+        
+        if (npcs.length === 0) {
+            content += '<div style="color: #999; text-align: center; padding: 40px;">주민이 없습니다.</div>'
+        } else {
+            npcs.forEach(npc => {
+                const friendshipLevel = this.npcSystem.getFriendshipLevel(npc.id)
+                let friendshipTierName = '초면'
+                if (friendshipLevel <= 20) friendshipTierName = '초면'
+                else if (friendshipLevel <= 50) friendshipTierName = '알음'
+                else if (friendshipLevel <= 80) friendshipTierName = '친구'
+                else friendshipTierName = '절친'
+                
+                const activeQuests = this.npcSystem.getActiveQuests(npc.id)
+                const hasActiveQuests = activeQuests.length > 0
+                
+                content += `
+                    <div style="padding: 15px; background: rgba(255,255,255,0.1); border-radius: 10px; cursor: pointer; transition: background 0.2s;" 
+                         onclick="window.openNPCPanel('${npc.id}')"
+                         onmouseover="this.style.background='rgba(255,255,255,0.15)'"
+                         onmouseout="this.style.background='rgba(255,255,255,0.1)'">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <h3 style="margin: 0; font-size: 18px;">${npc.name} ${hasActiveQuests ? '📋' : ''}</h3>
+                            <span style="font-size: 12px; color: #aaa;">${friendshipTierName}</span>
+                        </div>
+                        <div style="font-size: 12px; color: #aaa; margin-bottom: 8px;">호감도: ${friendshipLevel}/100</div>
+                        <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.2); border-radius: 3px; overflow: hidden;">
+                            <div style="width: ${friendshipLevel}%; height: 100%; background: #4CAF50; transition: width 0.3s;"></div>
+                        </div>
+                        ${hasActiveQuests ? `
+                            <div style="margin-top: 10px; font-size: 11px; color: #FFD700;">진행 중인 퀘스트: ${activeQuests.length}개</div>
+                        ` : ''}
+                    </div>
+                `
+            })
+        }
+        
+        content += `
+                </div>
+            </div>
+        `
+        
+        // 전역 함수 등록
+        const self = this
+        ;(window as any).openNPCPanel = (npcId: string) => {
+            const npc = self.npcSystem.getNPCById(npcId)
+            if (npc) {
+                self.showNPCPanel(npc, self.npcSystem)
+            }
+        }
+        
+        this.contextPanel.open('villagers', '주민', content)
+    }
+    
+    private showMapPanel() {
+        // 미니맵을 확대해서 보여주는 패널
+        let content = `
+            <div style="padding: 20px;">
+                <h2 style="margin: 0 0 20px 0;">지도</h2>
+                <div style="text-align: center; color: #999; padding: 40px;">
+                    <div style="font-size: 48px; margin-bottom: 20px;">🗺️</div>
+                    <div style="font-size: 16px; margin-bottom: 10px;">지도 기능</div>
+                    <div style="font-size: 14px; color: #666;">
+                        우측 상단의 미니맵을 확인하세요.<br>
+                        지도 확대 기능은 추후 업데이트 예정입니다.
+                    </div>
+                </div>
+            </div>
+        `
+        
+        this.contextPanel.open('map', '지도', content)
+    }
+    
     public setEventSystem(eventSystem: any) {
         this.eventSystem = eventSystem
+    }
+    
+    public setNPCSystem(npcSystem: any) {
+        this.npcSystem = npcSystem
+    }
+    
+    public setMiniMap(miniMap: MiniMap) {
+        this.miniMap = miniMap
+        this.updateMiniMapPosition()
     }
     
     public setPhotoMode(photoMode: any) {
@@ -1412,6 +1611,7 @@ export class UIManagerNew {
     
     public clearPendingBuildingType(): void {
         this.pendingBuildingType = null
+        this.pendingBuildingRotation = 0
     }
     
     public handleBuildingPlacement(position: { x: number; y: number; z: number }): boolean {
@@ -1420,9 +1620,10 @@ export class UIManagerNew {
         }
         
         const buildingType = this.pendingBuildingType
+        const rotation = this.pendingBuildingRotation
         const playerCoins = this.currencySystem ? this.currencySystem.getCoins() : 0
         
-        const result = this.buildingSystem.buildBuilding(buildingType, position, 0, playerCoins)
+        const result = this.buildingSystem.buildBuilding(buildingType, position, rotation, playerCoins)
         
         if (result.success) {
             // 코인 차감
@@ -1433,21 +1634,60 @@ export class UIManagerNew {
             this.showMessage(result.message, false)
             this.updateInventory()
             this.clearPendingBuildingType()
+            this.pendingBuildingRotation = 0
             
             // PlayerController에 배치 모드 해제 알림
             if (this.playerController && typeof (this.playerController as any).setBuildingMode === 'function') {
                 (this.playerController as any).setBuildingMode(false)
             }
             
+            // 사운드 재생
+            if (this.soundSystem) {
+                this.soundSystem.playSound('success')
+            }
+            
             return true
         } else {
             this.showMessage(result.message, false)
+            // 사운드 재생
+            if (this.soundSystem) {
+                this.soundSystem.playSound('error')
+            }
             return false
         }
     }
     
+    public rotateBuildingPreview(): void {
+        if (!this.pendingBuildingType) return
+        
+        this.pendingBuildingRotation = (this.pendingBuildingRotation + 90) % 360
+        this.showMessage(`건물 회전: ${this.pendingBuildingRotation}도 (R: 다시 회전, ESC: 취소)`, false)
+        
+        // 사운드 재생
+        if (this.soundSystem) {
+            this.soundSystem.playSound('click')
+        }
+    }
+    
+    public getPendingBuildingRotation(): number {
+        return this.pendingBuildingRotation
+    }
+    
     public showBuildingInteraction(building: any, buildingSystem: any) {
         if (!building || !buildingSystem) return
+        
+        // 건물 내부 입장 가능 여부 확인
+        const canEnter = this.interiorSystem && ['house', 'shop', 'museum', 'workshop', 'storage'].includes(building.type)
+        const isInside = this.interiorSystem && this.interiorSystem.isInsideBuilding()
+        
+        let enterButton = ''
+        if (canEnter) {
+            if (isInside) {
+                enterButton = `<button onclick="window.exitBuilding()" style="padding: 10px 20px; border-radius: 6px; border: none; background: #2196F3; color: #fff; cursor: pointer;">나가기</button>`
+            } else {
+                enterButton = `<button onclick="window.enterBuilding('${building.id}', '${building.type}')" style="padding: 10px 20px; border-radius: 6px; border: none; background: #4CAF50; color: #fff; cursor: pointer;">입장</button>`
+            }
+        }
         
         const content = `
             <div style="padding: 20px;">
@@ -1455,8 +1695,10 @@ export class UIManagerNew {
                 <div style="margin-top: 15px; margin-bottom: 15px;">
                     <div style="font-size: 14px; color: #aaa;">타입: ${building.type}</div>
                     <div style="font-size: 14px; color: #aaa;">위치: (${building.position.x.toFixed(1)}, ${building.position.y.toFixed(1)}, ${building.position.z.toFixed(1)})</div>
+                    <div style="font-size: 14px; color: #aaa;">회전: ${(building.rotation * 180 / Math.PI).toFixed(0)}도</div>
                 </div>
-                <div style="display: flex; gap: 10px;">
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    ${enterButton}
                     <button onclick="window.removeBuilding('${building.id}')" style="padding: 10px 20px; border-radius: 6px; border: none; background: #f44336; color: #fff; cursor: pointer;">제거</button>
                     <button onclick="window.closeBuildingInteraction()" style="padding: 10px 20px; border-radius: 6px; border: none; background: #666; color: #fff; cursor: pointer;">닫기</button>
                 </div>
@@ -1465,7 +1707,7 @@ export class UIManagerNew {
         
         const self = this
         ;(window as any).removeBuilding = (id: string) => {
-            if (confirm('이 건물을 제거하시겠습니까?')) {
+            if (confirm('이 건물을 제거하시겠습니까? (재료는 반환되지 않습니다)')) {
                 const success = buildingSystem.removeBuilding(id)
                 if (success) {
                     self.showMessage('건물이 제거되었습니다.', false)
@@ -1473,6 +1715,28 @@ export class UIManagerNew {
                     self.updateInventory()
                 } else {
                     self.showMessage('건물 제거에 실패했습니다.', false)
+                }
+            }
+        }
+        
+        ;(window as any).enterBuilding = (buildingId: string, buildingType: string) => {
+            if (self.interiorSystem) {
+                const success = self.interiorSystem.enterBuilding(buildingId, buildingType)
+                if (success) {
+                    self.showMessage(`${building.name}에 입장했습니다.`, false)
+                    self.contextPanel.close()
+                } else {
+                    self.showMessage('건물 입장에 실패했습니다.', false)
+                }
+            }
+        }
+        
+        ;(window as any).exitBuilding = () => {
+            if (self.interiorSystem) {
+                const success = self.interiorSystem.exitBuilding()
+                if (success) {
+                    self.showMessage('건물에서 나왔습니다.', false)
+                    self.contextPanel.close()
                 }
             }
         }
@@ -1508,11 +1772,6 @@ export class UIManagerNew {
         }
     }
     
-    public setMiniMap(miniMap: MiniMap) {
-        this.miniMap = miniMap
-        this.updateMiniMapPosition()
-    }
-
     private updateMiniMapPosition() {
         if (!this.miniMap) return
         const baseOffset = 20
@@ -1680,6 +1939,11 @@ export class UIManagerNew {
                         </div>
                     ` : ''}
                     <button onclick="window.startBuilding('${type}')" style="padding: 8px 16px; border-radius: 6px; border: none; background: ${canBuild.canBuild ? '#4CAF50' : '#666'}; color: #fff; cursor: ${canBuild.canBuild ? 'pointer' : 'not-allowed'};" ${!canBuild.canBuild ? 'disabled' : ''}>건설 시작</button>
+                    ${canBuild.canBuild ? `
+                    <div style="margin-top: 10px; font-size: 11px; color: #aaa;">
+                        💡 조작법: 마우스로 위치 선택 → R 키로 회전 → 좌클릭으로 배치
+                    </div>
+                    ` : ''}
                 </div>
             `
         })
@@ -1693,7 +1957,8 @@ export class UIManagerNew {
         const self = this
         ;(window as any).startBuilding = (type: string) => {
             self.pendingBuildingType = type
-            self.showMessage('건설 모드: 땅을 클릭하여 건물을 배치하세요. (ESC로 취소)', false)
+            self.pendingBuildingRotation = 0
+            self.showMessage('건설 모드: 땅을 클릭하여 건물을 배치하세요. (R: 회전, ESC: 취소)', false)
             self.contextPanel.close()
             
             // PlayerController에 배치 모드 알림

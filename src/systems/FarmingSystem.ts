@@ -446,4 +446,30 @@ export class FarmingSystem {
   public getAllCropTypes(): CropType[] {
     return Object.keys(this.cropDatabase) as CropType[]
   }
+  
+  // 작물 복원 (로드 시 사용)
+  public restoreCrop(plotId: string, cropData: { id: string; type: CropType; stage: CropStage; plantedDate: number; watered: boolean; growthProgress: number; position: { x: number; y: number; z: number } }): boolean {
+    const plot = this.farmPlots.get(plotId)
+    if (!plot) {
+      return false
+    }
+    
+    // 작물 생성
+    const crop: Crop = {
+      id: cropData.id,
+      type: cropData.type,
+      stage: cropData.stage,
+      plantedDate: cropData.plantedDate,
+      watered: cropData.watered,
+      growthProgress: cropData.growthProgress,
+      position: cropData.position
+    }
+    
+    // 작물 메시 생성
+    this.createCropMesh(crop, plot)
+    
+    plot.crop = crop
+    
+    return true
+  }
 }

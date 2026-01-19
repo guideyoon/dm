@@ -26,7 +26,7 @@ export class MobileSupport {
   /**
    * 터치 디바이스 여부
    */
-  public isTouchDevice(): boolean {
+  public isTouchDeviceMethod(): boolean {
     return this.isTouchDevice
   }
 

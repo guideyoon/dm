@@ -16,7 +16,10 @@ export interface SaveData {
     codexEntries: string[] // 발견한 도감 항목 ID
     museumDonations: string[] // 기증한 아이템 ID
     completedMissions: string[] // 완료한 미션 ID
-    buildingPlaced: Array<{ id: string; type: string; position: { x: number; y: number; z: number } }>
+    buildingPlaced: Array<{ id: string; type: string; position: { x: number; y: number; z: number }; rotation: number }>
+    furniturePlaced?: Array<{ id: string; type: string; position: { x: number; y: number; z: number }; rotation: number; theme: string; themeScore: number }> // 가구 배치 데이터
+    farmPlots?: Array<{ id: string; position: { x: number; y: number; z: number }; crop: { id: string; type: string; stage: string; plantedDate: number; watered: boolean; growthProgress: number; position: { x: number; y: number; z: number } } | null }> // 농장 밭 데이터
+    customization?: { equippedOutfit: { top?: string; bottom?: string; dress?: string; shoes?: string; hat?: string; hair?: string } } // 캐릭터 커스터마이징 데이터
     pets?: any[] // 펫 데이터
     petHouses?: any[] // 펫집 데이터
     tutorialProgress?: {
@@ -55,7 +58,10 @@ export class SaveSystem {
     missionSystem?: any,
     buildingSystem?: any,
     petSystem?: any,
-    tutorialSystem?: any
+    tutorialSystem?: any,
+    decorationSystem?: any,
+    farmingSystem?: any,
+    customizationSystem?: any
   ): boolean {
     try {
       // 도감 시스템 데이터 수집
@@ -82,13 +88,14 @@ export class SaveSystem {
       }
       
       // 건물 시스템 데이터 수집
-      let buildingPlaced: Array<{ id: string; type: string; position: { x: number; y: number; z: number } }> = []
+      let buildingPlaced: Array<{ id: string; type: string; position: { x: number; y: number; z: number }; rotation: number }> = []
       if (buildingSystem && typeof buildingSystem.getBuildings === 'function') {
         const buildings = buildingSystem.getBuildings()
         buildingPlaced = buildings.map((building: any) => ({
           id: building.id,
           type: building.type,
-          position: building.position
+          position: building.position,
+          rotation: building.rotation || 0
         }))
       }
       
@@ -96,6 +103,55 @@ export class SaveSystem {
       let tutorialProgress: any = null
       if (tutorialSystem && typeof tutorialSystem.getTutorialProgress === 'function') {
         tutorialProgress = tutorialSystem.getTutorialProgress()
+      }
+      
+      // 가구 시스템 데이터 수집
+      let furniturePlaced: Array<{ id: string; type: string; position: { x: number; y: number; z: number }; rotation: number; theme: string; themeScore: number }> = []
+      if (decorationSystem && typeof decorationSystem.getFurniture === 'function') {
+        const furniture = decorationSystem.getFurniture()
+        furniturePlaced = furniture.map((f: any) => ({
+          id: f.id,
+          type: f.type,
+          position: f.position,
+          rotation: f.rotation || 0,
+          theme: f.theme,
+          themeScore: f.themeScore
+        }))
+      }
+      
+      // 농장 시스템 데이터 수집
+      let farmPlots: Array<{ id: string; position: { x: number; y: number; z: number }; crop: any | null }> = []
+      if (farmingSystem && typeof farmingSystem.getFarmPlots === 'function') {
+        const plots = farmingSystem.getFarmPlots()
+        farmPlots = plots.map((plot: any) => ({
+          id: plot.id,
+          position: plot.position,
+          crop: plot.crop ? {
+            id: plot.crop.id,
+            type: plot.crop.type,
+            stage: plot.crop.stage,
+            plantedDate: plot.crop.plantedDate,
+            watered: plot.crop.watered,
+            growthProgress: plot.crop.growthProgress,
+            position: plot.crop.position
+          } : null
+        }))
+      }
+      
+      // 캐릭터 커스터마이징 시스템 데이터 수집
+      let customization: any = null
+      if (customizationSystem && typeof customizationSystem.getEquippedOutfit === 'function') {
+        const outfit = customizationSystem.getEquippedOutfit()
+        customization = {
+          equippedOutfit: {
+            top: outfit.top,
+            bottom: outfit.bottom,
+            dress: outfit.dress,
+            shoes: outfit.shoes,
+            hat: outfit.hat,
+            hair: outfit.hair
+          }
+        }
       }
       
       // 펫 시스템 데이터 수집
@@ -162,6 +218,9 @@ export class SaveSystem {
           museumDonations: museumDonations,
           completedMissions: completedMissions,
           buildingPlaced: buildingPlaced,
+          furniturePlaced: furniturePlaced,
+          farmPlots: farmPlots,
+          customization: customization,
           pets: pets,
           petHouses: petHouses,
           tutorialProgress: tutorialProgress
@@ -418,6 +477,15 @@ export class SaveSystem {
     }
     if (!migrated.progress.petHouses) {
       migrated.progress.petHouses = []
+    }
+    if (!migrated.progress.furniturePlaced) {
+      migrated.progress.furniturePlaced = []
+    }
+    if (!migrated.progress.farmPlots) {
+      migrated.progress.farmPlots = []
+    }
+    if (!migrated.progress.customization) {
+      migrated.progress.customization = undefined
     }
     
     // player 필드 보완

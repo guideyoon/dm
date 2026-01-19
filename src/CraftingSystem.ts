@@ -26,20 +26,18 @@ export class CraftingSystem {
             return { success: false, message: '재료가 부족합니다.' }
         }
 
-        // 인벤토리 공간 확인
-        const currentCount = this.inventoryManager.getCount(recipe.resultItem)
-        const canAdd = this.inventoryManager.add(recipe.resultItem, recipe.resultCount)
-        
-        if (!canAdd) {
-            return { success: false, message: '인벤토리가 가득 찼습니다.' }
-        }
-
         // 재료 소비
         for (const ingredient of recipe.ingredients) {
             this.inventoryManager.remove(ingredient.name, ingredient.count)
         }
 
-        return { success: true, message: `${recipe.name} 제작 완료!` }
+        // 인벤토리에 자동 추가하지 않고 결과만 반환
+        return { 
+            success: true, 
+            message: `${recipe.name} 제작 완료!`,
+            resultItem: recipe.resultItem,
+            resultCount: recipe.resultCount
+        }
     }
 
     getAvailableRecipes(): Recipe[] {

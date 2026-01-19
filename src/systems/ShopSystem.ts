@@ -630,11 +630,76 @@ export class ShopSystem {
     }
     
     const displayNames: { [key: string]: string } = {
+      // 기본 재료
       'Wood': '나무',
       'Stone': '돌',
       'Berry': '열매',
       'Mushroom': '버섯',
       'Flower': '꽃',
+      
+      // 도구
+      'tool_axe': '도끼',
+      'tool_pickaxe': '곡괭이',
+      'tool_shovel': '삽',
+      'tool_fishing_rod': '낚싯대',
+      'tool_net': '곤충망',
+      'tool_watering_can': '물뿌리개',
+      'tool_axe_iron': '강화 도끼',
+      'tool_pickaxe_iron': '강화 곡괭이',
+      'tool_fishing_rod_pro': '고급 낚싯대',
+      
+      // 재료
+      'material_wood': '나무',
+      'material_stone': '돌',
+      'material_iron': '철',
+      'material_plank': '나무 판자',
+      'material_brick': '돌 벽돌',
+      
+      // 소비품
+      'consumable_berry_juice': '베리 주스',
+      'consumable_herb_tea': '허브 차',
+      'consumable_mushroom_soup': '버섯 수프',
+      'consumable_turnip_salad': '순무 샐러드',
+      'consumable_carrot_cake': '당근 케이크',
+      'consumable_fried_potato': '감자 튀김',
+      'consumable_tomato_juice': '토마토 주스',
+      'consumable_corn_soup': '옥수수 수프',
+      'consumable_stir_fry': '야채 볶음',
+      'consumable_tomato_pasta': '토마토 파스타',
+      'item_bait': '미끼',
+      'item_fertilizer': '비료',
+      'pet_food_basic': '기본 펫 사료',
+      'pet_food_premium': '프리미엄 펫 사료',
+      'pet_food_fish': '생선 사료',
+      'pet_food_bone': '뼈 사료',
+      
+      // 가구
+      'furniture_chair': '의자',
+      'furniture_table': '테이블',
+      'furniture_lamp': '램프',
+      'furniture_plant': '화분',
+      'furniture_rug': '카펫',
+      
+      // 장식
+      'decoration_flower_crown': '꽃 화관',
+      'decoration_flower_bouquet': '꽃다발',
+      'decoration_shell_ornament': '조개 장식',
+      'decoration_fossil_display': '화석 표시품',
+      
+      // 펫
+      'pet_egg_cat': '고양이 펫알',
+      'pet_egg_dog': '강아지 펫알',
+      'pet_egg_rabbit': '토끼 펫알',
+      'pet_egg_bird': '새 펫알',
+      'pet_egg_fox': '여우 펫알',
+      'pet_egg_bear': '곰 펫알',
+      
+      // 씨앗
+      'seed_turnip': '순무 씨앗',
+      'seed_carrot': '당근 씨앗',
+      'seed_potato': '감자 씨앗',
+      
+      // 물고기
       'fish_crucian': '붕어',
       'fish_carp': '잉어',
       'fish_catfish': '메기',

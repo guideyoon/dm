@@ -15,6 +15,7 @@ export interface NPC {
   mesh?: Mesh // 상호작용 마커
   rootMesh?: Mesh // NPC 루트 메시 (모든 부위의 부모)
   position: { x: number; y: number; z: number }
+  isTalking?: boolean // 대화 중인지 여부
 }
 
 export interface Dialogue {
@@ -170,12 +171,16 @@ export class NPCSystem {
       0.5 + random(-0.1, 0.1)
     )
     
+    // 루트 메시에 metadata 설정
+    npcMesh.metadata = { type: 'npc', npcId: npc.id }
+    
     // 머리
     const head = MeshBuilder.CreateBox(`npc_head_${npc.id}`, { width: 0.4, height: 0.4, depth: 0.4 }, this.scene)
     head.position.y = 1.4
     head.material = new StandardMaterial(`npcHeadMat_${npc.id}`, this.scene)
     head.material.diffuseColor = skinColor
     head.parent = npcMesh
+    head.metadata = { type: 'npc', npcId: npc.id }
     
     // 얼굴
     const faceMat = new StandardMaterial(`npcFaceMat_${npc.id}`, this.scene)
@@ -189,21 +194,25 @@ export class NPCSystem {
     leftEye.position = new Vector3(-0.08, 0.05, 0.205)
     leftEye.material = faceMat
     leftEye.parent = head
+    leftEye.metadata = { type: 'npc', npcId: npc.id }
     
     const rightEye = MeshBuilder.CreatePlane(`npc_rightEye_${npc.id}`, { width: 0.06, height: 0.06 }, this.scene)
     rightEye.position = new Vector3(0.08, 0.05, 0.205)
     rightEye.material = faceMat
     rightEye.parent = head
+    rightEye.metadata = { type: 'npc', npcId: npc.id }
     
     const nose = MeshBuilder.CreateBox(`npc_nose_${npc.id}`, { width: 0.06, height: 0.06, depth: 0.06 }, this.scene)
     nose.position = new Vector3(0, -0.05, 0.2)
     nose.material = noseMat
     nose.parent = head
+    nose.metadata = { type: 'npc', npcId: npc.id }
     
     const mouth = MeshBuilder.CreatePlane(`npc_mouth_${npc.id}`, { width: 0.08, height: 0.03 }, this.scene)
     mouth.position = new Vector3(0, -0.15, 0.205)
     mouth.material = faceMat
     mouth.parent = head
+    mouth.metadata = { type: 'npc', npcId: npc.id }
     
     // 헤어 (랜덤 색상)
     const hairMat = new StandardMaterial(`npcHairMat_${npc.id}`, this.scene)
@@ -213,21 +222,25 @@ export class NPCSystem {
     hairTop.position.y = 0.15
     hairTop.material = hairMat
     hairTop.parent = head
+    hairTop.metadata = { type: 'npc', npcId: npc.id }
     
     const hairBack = MeshBuilder.CreateBox(`npc_hairBack_${npc.id}`, { width: 0.44, height: 0.3, depth: 0.1 }, this.scene)
     hairBack.position = new Vector3(0, -0.05, -0.18)
     hairBack.material = hairMat
     hairBack.parent = head
+    hairBack.metadata = { type: 'npc', npcId: npc.id }
     
     const hairLeft = MeshBuilder.CreateBox(`npc_hairLeft_${npc.id}`, { width: 0.1, height: 0.3, depth: 0.35 }, this.scene)
     hairLeft.position = new Vector3(-0.18, -0.05, -0.05)
     hairLeft.material = hairMat
     hairLeft.parent = head
+    hairLeft.metadata = { type: 'npc', npcId: npc.id }
     
     const hairRight = MeshBuilder.CreateBox(`npc_hairRight_${npc.id}`, { width: 0.1, height: 0.3, depth: 0.35 }, this.scene)
     hairRight.position = new Vector3(0.18, -0.05, -0.05)
     hairRight.material = hairMat
     hairRight.parent = head
+    hairRight.metadata = { type: 'npc', npcId: npc.id }
     
     // 몸통 (랜덤 옷 색상)
     const body = MeshBuilder.CreateBox(`npc_body_${npc.id}`, { width: 0.5, height: 0.6, depth: 0.3 }, this.scene)
@@ -235,6 +248,7 @@ export class NPCSystem {
     body.material = new StandardMaterial(`npcBodyMat_${npc.id}`, this.scene)
     body.material.diffuseColor = topColor
     body.parent = npcMesh
+    body.metadata = { type: 'npc', npcId: npc.id }
     
     // 다리 (랜덤 하의 색상)
     const leftLeg = MeshBuilder.CreateBox(`npc_leftLeg_${npc.id}`, { width: 0.2, height: 0.6, depth: 0.2 }, this.scene)
@@ -242,6 +256,7 @@ export class NPCSystem {
     leftLeg.material = new StandardMaterial(`npcLeftLegMat_${npc.id}`, this.scene)
     leftLeg.material.diffuseColor = bottomColor
     leftLeg.parent = npcMesh
+    leftLeg.metadata = { type: 'npc', npcId: npc.id }
     // 다리 회전 중심 설정 (상단 - 몸통 연결부)
     leftLeg.setPivotPoint(new Vector3(0, 0.3, 0))
     
@@ -250,6 +265,7 @@ export class NPCSystem {
     rightLeg.material = new StandardMaterial(`npcRightLegMat_${npc.id}`, this.scene)
     rightLeg.material.diffuseColor = bottomColor
     rightLeg.parent = npcMesh
+    rightLeg.metadata = { type: 'npc', npcId: npc.id }
     // 다리 회전 중심 설정 (상단 - 몸통 연결부)
     rightLeg.setPivotPoint(new Vector3(0, 0.3, 0))
     
@@ -259,6 +275,7 @@ export class NPCSystem {
     leftArm.material = new StandardMaterial(`npcLeftArmMat_${npc.id}`, this.scene)
     leftArm.material.diffuseColor = skinColor
     leftArm.parent = npcMesh
+    leftArm.metadata = { type: 'npc', npcId: npc.id }
     // 팔 회전 중심 설정 (상단 - 어깨)
     leftArm.setPivotPoint(new Vector3(0, 0.25, 0))
     
@@ -267,6 +284,7 @@ export class NPCSystem {
     rightArm.material = new StandardMaterial(`npcRightArmMat_${npc.id}`, this.scene)
     rightArm.material.diffuseColor = skinColor
     rightArm.parent = npcMesh
+    rightArm.metadata = { type: 'npc', npcId: npc.id }
     // 팔 회전 중심 설정 (상단 - 어깨)
     rightArm.setPivotPoint(new Vector3(0, 0.25, 0))
     
@@ -276,12 +294,14 @@ export class NPCSystem {
     leftShoe.position = new Vector3(0, -0.3 + 0.1, 0.025)
     leftShoe.material = new StandardMaterial(`npcLeftShoeMat_${npc.id}`, this.scene)
     leftShoe.material.diffuseColor = shoeColor
+    leftShoe.metadata = { type: 'npc', npcId: npc.id }
     
     const rightShoe = MeshBuilder.CreateBox(`npc_rightShoe_${npc.id}`, { width: 0.22, height: 0.15, depth: 0.3 }, this.scene)
     rightShoe.parent = rightLeg
     rightShoe.position = new Vector3(0, -0.3 + 0.1, 0.025)
     rightShoe.material = new StandardMaterial(`npcRightShoeMat_${npc.id}`, this.scene)
     rightShoe.material.diffuseColor = shoeColor
+    rightShoe.metadata = { type: 'npc', npcId: npc.id }
     
     // NPC 마커 (상호작용 가능)
     const marker = MeshBuilder.CreateSphere(`npc_marker_${npc.id}`, { diameter: 0.3 }, this.scene)
@@ -382,13 +402,38 @@ export class NPCSystem {
   
   public isNPC(mesh: Mesh | null): boolean {
     if (!mesh) return false
-    return mesh.metadata?.type === 'npc'
+    
+    // 직접 NPC인 경우
+    if (mesh.metadata?.type === 'npc') return true
+    
+    // 부모를 따라 올라가면서 NPC 찾기
+    let currentMesh: any = mesh.parent
+    while (currentMesh) {
+      if (currentMesh.metadata?.type === 'npc') return true
+      currentMesh = currentMesh.parent
+    }
+    
+    return false
   }
   
   public getNPC(mesh: Mesh): NPC | undefined {
-    const npcId = mesh.metadata?.npcId
-    if (!npcId) return undefined
-    return this.npcs.get(npcId)
+    // 직접 NPC인 경우
+    let npcId = mesh.metadata?.npcId
+    if (npcId) {
+      return this.npcs.get(npcId)
+    }
+    
+    // 부모를 따라 올라가면서 NPC 찾기
+    let currentMesh: any = mesh.parent
+    while (currentMesh) {
+      npcId = currentMesh.metadata?.npcId
+      if (npcId) {
+        return this.npcs.get(npcId)
+      }
+      currentMesh = currentMesh.parent
+    }
+    
+    return undefined
   }
   
   public getNPCById(id: string): NPC | undefined {
@@ -853,6 +898,12 @@ export class NPCSystem {
   // NPC 이동 애니메이션 (렌더 루프에서 호출)
   public updateNPCMovements(deltaTime: number) {
     this.npcs.forEach(npc => {
+      // 대화 중이면 이동/애니메이션 중지
+      if (npc.isTalking) {
+        this.resetNPCAnimation(npc)
+        return
+      }
+      
       if (!npc.mesh || !(npc as any).isMoving) {
         // 이동하지 않을 때는 애니메이션 리셋
         this.resetNPCAnimation(npc)
@@ -873,8 +924,15 @@ export class NPCSystem {
         ;(npc as any).targetPosition = null
         this.resetNPCAnimation(npc)
       } else {
-        // 목적지로 이동 (매우 천천히)
-        const moveSpeed = (npc as any).moveSpeed || 0.005 // 매우 느린 속도 (0.02 -> 0.005)
+        // 목적지로 이동
+        // 속도 부스트 시간이 지났으면 원래 속도로 복귀
+        const speedBoostEndTime = (npc as any).speedBoostEndTime || 0
+        if (speedBoostEndTime > 0 && Date.now() > speedBoostEndTime) {
+          ;(npc as any).moveSpeed = 0.02 // 원래 속도
+          ;(npc as any).speedBoostEndTime = 0
+        }
+        
+        const moveSpeed = (npc as any).moveSpeed || 0.02 // 기본 속도
         const moveDistance = moveSpeed * deltaTime * 60 // 프레임 비율 조정
         
         const moveX = (dx / distance) * moveDistance
@@ -1041,6 +1099,43 @@ export class NPCSystem {
     
     ;(npc as any).currentHobby = null
     ;(npc as any).hobbyStartTime = null
+  }
+  
+  // NPC가 플레이어를 바라보고 멈추게 하기
+  public makeNPCLookAtPlayer(npcId: string, playerPosition: Vector3) {
+    const npc = this.npcs.get(npcId)
+    if (!npc || !npc.rootMesh) return
+    
+    // 대화 중 플래그 설정
+    npc.isTalking = true
+    ;(npc as any).isMoving = false
+    ;(npc as any).targetPosition = null
+    
+    // 플레이어 방향으로 회전
+    const dx = playerPosition.x - npc.position.x
+    const dz = playerPosition.z - npc.position.z
+    const targetAngle = Math.atan2(dx, dz)
+    npc.rootMesh.rotation.y = targetAngle
+    
+    // 애니메이션 리셋
+    this.resetNPCAnimation(npc)
+  }
+  
+  // NPC 대화 종료 (다시 이동 가능하게)
+  public endNPCDialogue(npcId: string) {
+    const npc = this.npcs.get(npcId)
+    if (npc) {
+      npc.isTalking = false
+      
+      // 대화 종료 후 일정 시간 동안 이동 속도 증가 (2배)
+      const originalSpeed = 0.02
+      const boostedSpeed = 0.04 // 2배 속도
+      ;(npc as any).moveSpeed = boostedSpeed
+      ;(npc as any).speedBoostEndTime = Date.now() + 10000 // 10초 동안 속도 증가
+      
+      // 새로운 목적지 설정하여 즉시 이동 시작
+      this.updateNPCMovement(npc)
+    }
   }
   
   // NPC 취미 활동 가져오기
