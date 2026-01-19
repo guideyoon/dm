@@ -113,29 +113,13 @@ function initGame() {
   // Babylon.js 씬에서도 우클릭 차단 (더 강력하게)
   scene.onPointerObservable.add((pointerInfo) => {
     const event = pointerInfo.event as MouseEvent
-    if (event) {
+    if (event && event.button === 2) {
       // 우클릭 버튼 차단
-      if (event.button === 2) {
-        event.preventDefault()
-        event.stopPropagation()
-        event.stopImmediatePropagation()
-        return false
-      }
-      // contextmenu 이벤트 차단
-      if (pointerInfo.type === 4) { // POINTERWHEEL 또는 다른 이벤트
-        if (event.button === 2) {
-          event.preventDefault()
-          event.stopPropagation()
-          event.stopImmediatePropagation()
-          return false
-        }
-      }
+      event.preventDefault()
+      event.stopPropagation()
+      event.stopImmediatePropagation()
+      return false
     }
-  }, 1) // Priority 1로 높은 우선순위 설정
-  
-  // 추가: 엔진 레벨에서도 차단
-  engine.onContextMenuLostFocusObservable.add(() => {
-    // 컨텍스트 메뉴 포커스 손실 시 아무것도 하지 않음
   })
 
   // 인증 시스템 초기화
